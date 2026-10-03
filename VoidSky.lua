@@ -1,5 +1,7 @@
--- Void ↔️ Céu v7.3
--- Quando o martelo sumir → pega espada e teleporta de novo pro martelo (automático)
+-- Void ↔️ Céu v7.4
+-- Anti-void com CFrame forçado a cada frame (tenta replicar para todos)
+-- Fluxo: fica parado → pega martelo → void → céu quando alvo Y≥100
+-- Recupera martelo se sumir
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -39,6 +41,7 @@ local trackConn = nil
 local steppedConn = nil
 local healthConn = nil
 local recoverConn = nil
+local replicateConn = nil
 
 local function makeSound(id, vol)
 	local s = Instance.new("Sound")
@@ -316,7 +319,9 @@ local function clearHoldConnections()
 	if toolConn then toolConn:Disconnect() toolConn = nil end
 	if steppedConn then steppedConn:Disconnect() steppedConn = nil end
 	if healthConn then healthConn:Disconnect() healthConn = nil end
+	if replicateConn then replicateConn:Disconnect() replicateConn = nil end
 	pcall(function() RunService:UnbindFromRenderStep("VoidSkyHold") end)
+	pcall(function() RunService:UnbindFromRenderStep("VoidSkyReplicate") end)
 end
 
 local function clearConnections()
@@ -405,15 +410,23 @@ local function startToolForce()
 	end)
 end
 
+-- FORÇA CFrame de forma que tende a replicar (network ownership do character)
 local function forcePosition(cf)
+	local char = player.Character
 	local hrp = getHRP()
-	if hrp and hrp.Parent then
-		pcall(function()
-			hrp.CFrame = cf
-			hrp.AssemblyLinearVelocity = Vector3.zero
-			hrp.AssemblyAngularVelocity = Vector3.zero
-		end)
-	end
+	if not hrp or not hrp.Parent then return end
+
+	pcall(function()
+		-- PivotTo no modelo inteiro ajuda a sincronizar
+		if char then
+			char:PivotTo(cf)
+		end
+		hrp.CFrame = cf
+		hrp.AssemblyLinearVelocity = Vector3.zero
+		hrp.AssemblyAngularVelocity = Vector3.zero
+		hrp.Velocity = Vector3.zero
+		hrp.RotVelocity = Vector3.zero
+	end)
 end
 
 local function enableHold(cf)
@@ -423,7 +436,9 @@ local function enableHold(cf)
 	local hrp, hum = waitForCharacter(3)
 	if not hrp or not hum then return end
 
+	-- Estado Physics = client controla física e CFrame replica melhor
 	pcall(function()
+		hum:ChangeState(Enum.HumanoidStateType.Physics)
 		hum.PlatformStand = true
 		hum.WalkSpeed = 0
 		hum.JumpPower = 0
@@ -433,35 +448,48 @@ local function enableHold(cf)
 		hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 		hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
 		hum:SetStateEnabled(Enum.HumanoidStateType.Flying, false)
-		hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
 		hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)
 		hum.Health = hum.MaxHealth
 	end)
 
-	hrp.Anchored = false
+	hrp.Anchored = false -- NÃO ancorar: ancorado NÃO replica bem / quebra martelo
 	forcePosition(cf)
 
-	RunService:BindToRenderStep("VoidSkyHold", Enum.RenderPriority.Last.Value + 20, function()
+	-- RenderStep prioritário (você vê instantâneo)
+	RunService:BindToRenderStep("VoidSkyHold", Enum.RenderPriority.Last.Value + 50, function()
 		if not running or not currentHoldCF then return end
 		forcePosition(currentHoldCF)
 	end)
 
+	-- Heartbeat (física + tende a mandar pro servidor)
 	protectConn = RunService.Heartbeat:Connect(function()
 		if not running or not currentHoldCF then return end
 		forcePosition(currentHoldCF)
+
 		local h = getHumanoid()
 		if h and h.Parent then
 			h.Health = h.MaxHealth
 			h.PlatformStand = true
-			h.WalkSpeed = 0
-			h.JumpPower = 0
-			h.JumpHeight = 0
+			pcall(function() h:ChangeState(Enum.HumanoidStateType.Physics) end)
 		end
 	end)
 
+	-- Stepped (antes da física)
 	steppedConn = RunService.Stepped:Connect(function()
 		if not running or not currentHoldCF then return end
 		forcePosition(currentHoldCF)
+	end)
+
+	-- Extra: força de novo no fim do frame (ajuda replicação)
+	replicateConn = RunService.Heartbeat:Connect(function()
+		if not running or not currentHoldCF then return end
+		local root = getHRP()
+		if root and root.Parent then
+			pcall(function()
+				root.CFrame = currentHoldCF
+				root.AssemblyLinearVelocity = Vector3.zero
+			end)
+		end
 	end)
 
 	healthConn = RunService.Heartbeat:Connect(function()
@@ -484,6 +512,7 @@ local function moveTo(cf)
 	currentHoldCF = nil
 
 	pcall(function()
+		hum:ChangeState(Enum.HumanoidStateType.Physics)
 		hum.PlatformStand = true
 		hum.WalkSpeed = 0
 		hum.JumpPower = 0
@@ -491,13 +520,17 @@ local function moveTo(cf)
 		hum.AutoRotate = false
 	end)
 
-	pcall(function()
-		local char = player.Character
-		if char then char:PivotTo(cf) end
-		hrp.CFrame = cf
-		hrp.AssemblyLinearVelocity = Vector3.zero
-		hrp.AssemblyAngularVelocity = Vector3.zero
-	end)
+	-- Várias escritas seguidas pra “grudar” no servidor
+	for i = 1, 8 do
+		pcall(function()
+			local char = player.Character
+			if char then char:PivotTo(cf) end
+			hrp.CFrame = cf
+			hrp.AssemblyLinearVelocity = Vector3.zero
+			hrp.AssemblyAngularVelocity = Vector3.zero
+		end)
+		task.wait()
+	end
 
 	if running then enableHold(cf) end
 end
@@ -575,7 +608,6 @@ local function stopSequence()
 	restoreCharacter()
 end
 
--- Pega martelo SEM mover o personagem
 local function tryGrabHammer()
 	local char = player.Character
 	if not char then return false end
@@ -603,9 +635,7 @@ local function tryGrabHammer()
 	local tool = getAnyTool()
 	if not tool then return false end
 
-	local savedCF = root.CFrame
-	if currentHoldCF then savedCF = currentHoldCF end
-
+	local savedCF = currentHoldCF or root.CFrame
 	humanoid:EquipTool(tool)
 	task.wait(0.08)
 
@@ -655,7 +685,6 @@ local function tryGrabHammer()
 		end
 	end
 
-	-- Mantém você no lugar (void/céu)
 	if currentHoldCF then
 		forcePosition(currentHoldCF)
 	else
@@ -672,7 +701,6 @@ local function tryGrabHammer()
 	return false
 end
 
--- Loop que recupera o martelo sempre que sumir
 local function startHammerRecover()
 	if recoverConn then recoverConn:Disconnect() end
 
@@ -680,16 +708,13 @@ local function startHammerRecover()
 		if not running then return end
 
 		local hasHammer = findTool() ~= nil
-
 		if hasHammer then
 			hammerReady = true
 			forceEquipTool()
 			return
 		end
 
-		-- Martelo sumiu
 		hammerReady = false
-
 		if recoveringHammer then return end
 		if tick() - lastRecoverAttempt < 1.2 then return end
 
@@ -705,7 +730,7 @@ local function startHammerRecover()
 				startToolForce()
 				setStatus("Martelo recuperado!", Color3.fromRGB(70, 220, 120))
 			else
-				setStatus("Falhou recuperar, tentando de novo...", Color3.fromRGB(255, 120, 50))
+				setStatus("Falhou recuperar, tentando...", Color3.fromRGB(255, 120, 50))
 			end
 			recoveringHammer = false
 		end)
@@ -794,7 +819,7 @@ local function startSequence()
 	setStatus("Void (" .. targetPlayer.Name .. ")", Color3.fromRGB(100, 180, 255))
 
 	startTracking()
-	startHammerRecover() -- monitora e recupera se sumir
+	startHammerRecover()
 end
 
 local function refreshPlayerList()
@@ -1044,4 +1069,4 @@ player.CharacterAdded:Connect(function()
 	end
 end)
 
-print("✅ Void ↔️ Céu v7.3 | Auto-recupera martelo quando sumir")
+print("✅ Void ↔️ Céu v7.4 | CFrame forçado a cada frame (tenta aparecer pro pessoal)")
