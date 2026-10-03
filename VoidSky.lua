@@ -1,6 +1,11 @@
--- Void ↔️ Céu v7.1 - Anti-Void Forte + Bugs Corrigidos
--- Alvo Y ≥ 100 → Void (-1.000.000)
--- Alvo Y < 100  → Céu (10.000.000)
+-- Void ↔️ Céu v7.2
+-- Fluxo:
+-- 1) Seleciona player
+-- 2) Fica parado onde está
+-- 3) Pega martelo (fling da tool)
+-- 4) Vai pro Void Y=-1000000
+-- 5) Alvo Y >= 100 → Céu Y=10000000
+-- 6) Alvo Y < 100  → Void
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -17,11 +22,10 @@ end
 -- ==================== CONFIG ====================
 local POS_VOID = CFrame.new(0, -1000000, 0)
 local POS_SKY  = CFrame.new(0, 10000000, 0)
-local POS_SHOP = CFrame.new(-119.27, 18.30, 166.50)
+local POS_SHOP = Vector3.new(-119.27, 18.30, 166.50)
 local HEIGHT_TRIGGER = 100
 local TOOL_NAME = "SledgeHammer"
 local SWORD_NAME = "KatanaGroup"
-local SHOP_WAIT = 0.4
 
 -- ==================== ESTADO ====================
 local running = false
@@ -29,11 +33,11 @@ local originalCF = nil
 local currentHoldCF = nil
 local targetPlayer = nil
 local currentMode = nil
-local isFirstMove = true
 local countdownActive = false
 local closing = false
 local playerListOpen = false
 local selectedPlayer = nil
+local hammerReady = false
 
 local protectConn = nil
 local toolConn = nil
@@ -58,20 +62,13 @@ local sStop    = makeSound(9117423534, 0.6)
 local sCount   = makeSound(6895079853, 0.6)
 
 local function play(s)
-	pcall(function()
-		s:Stop()
-		s:Play()
-	end)
+	pcall(function() s:Stop() s:Play() end)
 end
 
 local function destroySounds()
 	pcall(function()
-		sClick:Destroy()
-		sConfirm:Destroy()
-		sCancel:Destroy()
-		sStart:Destroy()
-		sStop:Destroy()
-		sCount:Destroy()
+		sClick:Destroy() sConfirm:Destroy() sCancel:Destroy()
+		sStart:Destroy() sStop:Destroy() sCount:Destroy()
 	end)
 end
 
@@ -83,7 +80,7 @@ gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = player:WaitForChild("PlayerGui")
 
 local main = Instance.new("Frame")
-main.Size = UDim2.fromOffset(280, 192)
+main.Size = UDim2.fromOffset(280, 200)
 main.Position = UDim2.new(0.5, -140, 0.18, 0)
 main.BackgroundColor3 = Color3.fromRGB(15, 15, 21)
 main.BorderSizePixel = 0
@@ -142,12 +139,12 @@ content.BackgroundTransparency = 1
 content.Parent = main
 
 local info = Instance.new("TextLabel")
-info.Size = UDim2.new(1, -28, 0, 58)
-info.Position = UDim2.fromOffset(14, 10)
+info.Size = UDim2.new(1, -28, 0, 62)
+info.Position = UDim2.fromOffset(14, 8)
 info.BackgroundTransparency = 1
-info.Text = "• Seleciona um player\n• Alvo Y ≥ 100 → Void\n• Alvo Y < 100 → Céu"
+info.Text = "1. Escolhe o player\n2. Pega o martelo (fica parado)\n3. Void → Céu quando alvo Y≥100"
 info.TextColor3 = Color3.fromRGB(165, 165, 185)
-info.TextSize = 13
+info.TextSize = 12
 info.Font = Enum.Font.Gotham
 info.TextXAlignment = Enum.TextXAlignment.Left
 info.TextYAlignment = Enum.TextYAlignment.Top
@@ -155,7 +152,7 @@ info.Parent = content
 
 local status = Instance.new("TextLabel")
 status.Size = UDim2.new(1, -28, 0, 18)
-status.Position = UDim2.fromOffset(14, 72)
+status.Position = UDim2.fromOffset(14, 74)
 status.BackgroundTransparency = 1
 status.Text = "Status: Parado"
 status.TextColor3 = Color3.fromRGB(200, 85, 85)
@@ -177,27 +174,17 @@ local function createBtn(parent, text, color, size, pos)
 	b.AutoButtonColor = false
 	b.Parent = parent
 	Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8)
-
 	local oSize, oPos = size, pos
 	b.MouseButton1Down:Connect(function()
 		if b.Active then
-			TweenService:Create(b, TweenInfo.new(0.08), {
-				Size = oSize - UDim2.fromOffset(4, 4),
-				Position = oPos + UDim2.fromOffset(2, 2)
-			}):Play()
+			TweenService:Create(b, TweenInfo.new(0.08), {Size = oSize - UDim2.fromOffset(4, 4), Position = oPos + UDim2.fromOffset(2, 2)}):Play()
 		end
 	end)
 	b.MouseButton1Up:Connect(function()
-		TweenService:Create(b, TweenInfo.new(0.14, Enum.EasingStyle.Back), {
-			Size = oSize,
-			Position = oPos
-		}):Play()
+		TweenService:Create(b, TweenInfo.new(0.14, Enum.EasingStyle.Back), {Size = oSize, Position = oPos}):Play()
 	end)
 	b.MouseLeave:Connect(function()
-		TweenService:Create(b, TweenInfo.new(0.1), {
-			Size = oSize,
-			Position = oPos
-		}):Play()
+		TweenService:Create(b, TweenInfo.new(0.1), {Size = oSize, Position = oPos}):Play()
 	end)
 	return b
 end
@@ -338,9 +325,7 @@ local function clearHoldConnections()
 	if toolConn then toolConn:Disconnect() toolConn = nil end
 	if steppedConn then steppedConn:Disconnect() steppedConn = nil end
 	if healthConn then healthConn:Disconnect() healthConn = nil end
-	pcall(function()
-		RunService:UnbindFromRenderStep("VoidSkyHold")
-	end)
+	pcall(function() RunService:UnbindFromRenderStep("VoidSkyHold") end)
 end
 
 local function clearConnections()
@@ -418,9 +403,7 @@ local function forceEquipTool()
 	if not hum then return end
 	local tool = findTool()
 	if tool and tool.Parent ~= player.Character then
-		pcall(function()
-			hum:EquipTool(tool)
-		end)
+		pcall(function() hum:EquipTool(tool) end)
 	end
 end
 
@@ -444,6 +427,7 @@ local function forcePosition(cf)
 	end
 end
 
+-- Anti-void MUITO forte
 local function enableHold(cf)
 	clearHoldConnections()
 	currentHoldCF = cf
@@ -462,13 +446,14 @@ local function enableHold(cf)
 		hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
 		hum:SetStateEnabled(Enum.HumanoidStateType.Flying, false)
 		hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+		hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)
 		hum.Health = hum.MaxHealth
 	end)
 
 	hrp.Anchored = false
 	forcePosition(cf)
 
-	RunService:BindToRenderStep("VoidSkyHold", Enum.RenderPriority.Last.Value + 10, function()
+	RunService:BindToRenderStep("VoidSkyHold", Enum.RenderPriority.Last.Value + 20, function()
 		if not running or not currentHoldCF then return end
 		forcePosition(currentHoldCF)
 	end)
@@ -476,7 +461,6 @@ local function enableHold(cf)
 	protectConn = RunService.Heartbeat:Connect(function()
 		if not running or not currentHoldCF then return end
 		forcePosition(currentHoldCF)
-
 		local h = getHumanoid()
 		if h and h.Parent then
 			h.Health = h.MaxHealth
@@ -495,8 +479,8 @@ local function enableHold(cf)
 	healthConn = RunService.Heartbeat:Connect(function()
 		if not running then return end
 		local h = getHumanoid()
-		if h and h.Parent and h.Health < h.MaxHealth then
-			h.Health = h.MaxHealth
+		if h and h.Parent then
+			if h.Health < h.MaxHealth then h.Health = h.MaxHealth end
 		end
 	end)
 
@@ -505,7 +489,6 @@ end
 
 local function moveTo(cf)
 	if not running then return end
-
 	local hrp, hum = waitForCharacter(2.5)
 	if not hrp or not hum then return end
 
@@ -550,7 +533,7 @@ local function restoreCharacter()
 	currentHoldCF = nil
 	targetPlayer = nil
 	currentMode = nil
-	isFirstMove = true
+	hammerReady = false
 	selectedPlayer = nil
 
 	local hrp = getHRP()
@@ -568,15 +551,14 @@ local function restoreCharacter()
 			hum:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
 			hum:SetStateEnabled(Enum.HumanoidStateType.Flying, true)
 			hum:SetStateEnabled(Enum.HumanoidStateType.Physics, true)
+			hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, true)
 			hum:ChangeState(Enum.HumanoidStateType.Running)
 		end)
 	end
 
 	if hrp and hrp.Parent then
 		hrp.Anchored = false
-		if originalCF then
-			hrp.CFrame = originalCF
-		end
+		if originalCF then hrp.CFrame = originalCF end
 		hrp.AssemblyLinearVelocity = Vector3.zero
 		hrp.AssemblyAngularVelocity = Vector3.zero
 	end
@@ -584,10 +566,10 @@ end
 
 local function stopSequence()
 	if not running and not countdownActive then return end
-
 	running = false
 	countdownActive = false
 	currentHoldCF = nil
+	hammerReady = false
 
 	play(sStop)
 	setStatus("Parado", Color3.fromRGB(200, 85, 85))
@@ -601,11 +583,11 @@ local function stopSequence()
 	playerListOpen = false
 	confirmFrame.Visible = false
 	setButtonsEnabled(true)
-
 	task.wait(0.03)
 	restoreCharacter()
 end
 
+-- Pega martelo SEM teleportar o personagem (fica parado)
 local function tryGrabHammer()
 	local char = player.Character
 	if not char then return false end
@@ -614,12 +596,14 @@ local function tryGrabHammer()
 	local backpack = player:FindFirstChild("Backpack")
 	if not humanoid or not root then return false end
 
+	-- Já tem?
 	local hammer = findTool()
 	if hammer then
 		humanoid:EquipTool(hammer)
 		return true
 	end
 
+	-- Workspace
 	local wsHammer = workspace:FindFirstChild(TOOL_NAME)
 	if wsHammer and wsHammer:IsA("Tool") then
 		pcall(function()
@@ -630,6 +614,7 @@ local function tryGrabHammer()
 		if findTool() then return true end
 	end
 
+	-- Fling com qualquer tool (personagem NÃO se move)
 	local tool = getAnyTool()
 	if not tool then return false end
 
@@ -654,7 +639,8 @@ local function tryGrabHammer()
 	task.wait(0.03)
 	destroyGrip()
 
-	handle.CFrame = CFrame.new(POS_SHOP.Position + Vector3.new(0, 1.7, 0))
+	-- Só a tool vai pro shop, você fica parado
+	handle.CFrame = CFrame.new(POS_SHOP + Vector3.new(0, 1.7, 0))
 	handle.AssemblyLinearVelocity = Vector3.zero
 
 	if firetouchinterest then
@@ -665,14 +651,14 @@ local function tryGrabHammer()
 		end
 		if not target then
 			for _, obj in pairs(workspace:GetDescendants()) do
-				if obj:IsA("BasePart") and (obj.Position - POS_SHOP.Position).Magnitude < 18 then
+				if obj:IsA("BasePart") and (obj.Position - POS_SHOP).Magnitude < 18 then
 					target = obj
 					break
 				end
 			end
 		end
 		if target then
-			for i = 1, 6 do
+			for i = 1, 8 do
 				pcall(function()
 					firetouchinterest(handle, target, 0)
 					task.wait(0.012)
@@ -683,9 +669,10 @@ local function tryGrabHammer()
 		end
 	end
 
+	-- Garante que você continua no mesmo lugar
 	root.CFrame = savedCF
 	root.AssemblyLinearVelocity = Vector3.zero
-	task.wait(0.35)
+	task.wait(0.4)
 
 	hammer = findTool()
 	if hammer then
@@ -699,7 +686,7 @@ local function startTracking()
 	if trackConn then trackConn:Disconnect() end
 
 	trackConn = RunService.Heartbeat:Connect(function()
-		if not running or not targetPlayer then return end
+		if not running or not targetPlayer or not hammerReady then return end
 
 		local targetHRP = getTargetHRP()
 		if not targetHRP then
@@ -713,17 +700,19 @@ local function startTracking()
 
 		local targetY = targetHRP.Position.Y
 
+		-- Alvo Y >= 100 → CÉU
+		-- Alvo Y < 100  → VOID
 		if targetY >= HEIGHT_TRIGGER then
-			if currentMode ~= "void" then
-				currentMode = "void"
-				moveTo(POS_VOID)
-				setStatus("Void (" .. targetPlayer.Name .. ")", Color3.fromRGB(100, 180, 255))
-			end
-		else
 			if currentMode ~= "sky" then
 				currentMode = "sky"
 				moveTo(POS_SKY)
 				setStatus("Céu (" .. targetPlayer.Name .. ")", Color3.fromRGB(100, 255, 160))
+			end
+		else
+			if currentMode ~= "void" then
+				currentMode = "void"
+				moveTo(POS_VOID)
+				setStatus("Void (" .. targetPlayer.Name .. ")", Color3.fromRGB(100, 180, 255))
 			end
 		end
 	end)
@@ -733,11 +722,11 @@ local function startSequence()
 	if running or not targetPlayer then return end
 
 	running = true
-	isFirstMove = true
 	currentMode = nil
+	hammerReady = false
 	originalCF = getHRP() and getHRP().CFrame or CFrame.new()
 
-	setStatus("Ativo", Color3.fromRGB(70, 220, 120))
+	setStatus("Pegando martelo...", Color3.fromRGB(255, 200, 80))
 	play(sStart)
 	if title and title.Parent then
 		title.Text = "⚡ " .. targetPlayer.Name
@@ -749,25 +738,43 @@ local function startSequence()
 	playerListOpen = false
 	confirmFrame.Visible = false
 
-	if not findTool() then
-		moveTo(POS_SHOP)
-		task.wait(SHOP_WAIT)
-		tryGrabHammer()
-		task.wait(0.2)
+	-- 1) Fica parado e pega o martelo
+	local got = false
+	for i = 1, 5 do
+		if not running then return end
+		got = tryGrabHammer()
+		if got then break end
+		setStatus("Tentando martelo (" .. i .. "/5)...", Color3.fromRGB(255, 180, 50))
+		task.wait(0.6)
+	end
+
+	if not got then
+		setStatus("Falha ao pegar martelo", Color3.fromRGB(255, 80, 80))
+		task.wait(1.5)
+		stopSequence()
+		return
 	end
 
 	forceEquipTool()
 	startToolForce()
+	hammerReady = true
+	setStatus("Martelo OK → Void", Color3.fromRGB(70, 220, 120))
+
+	-- 2) Vai pro VOID
+	task.wait(0.15)
+	currentMode = "void"
+	moveTo(POS_VOID)
+	setStatus("Void (" .. targetPlayer.Name .. ")", Color3.fromRGB(100, 180, 255))
+
+	-- 3) Começa a rastrear (quando alvo Y>=100 → céu)
 	startTracking()
 end
 
+-- ==================== PLAYER LIST ====================
 local function refreshPlayerList()
 	for _, child in ipairs(plScroll:GetChildren()) do
-		if child:IsA("TextButton") then
-			child:Destroy()
-		end
+		if child:IsA("TextButton") then child:Destroy() end
 	end
-
 	confirmFrame.Visible = false
 	selectedPlayer = nil
 
@@ -790,16 +797,12 @@ local function refreshPlayerList()
 				play(sClick)
 				selectedPlayer = plr
 				targetPlayer = plr
-
 				for _, child in ipairs(plScroll:GetChildren()) do
-					if child:IsA("TextButton") then
-						child.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
-					end
+					if child:IsA("TextButton") then child.BackgroundColor3 = Color3.fromRGB(35, 35, 50) end
 				end
 				btn.BackgroundColor3 = Color3.fromRGB(55, 90, 140)
 				confirmFrame.Visible = true
 			end)
-
 			ySize = ySize + 42
 		end
 	end
@@ -810,25 +813,21 @@ local function openPlayerList()
 	if playerListOpen or running or countdownActive then return end
 	playerListOpen = true
 	refreshPlayerList()
-
 	playerListGui.Visible = true
 	playerListGui.Size = UDim2.fromOffset(0, 0)
 	playerListGui.Position = UDim2.new(0.5, 0, 0.5, 0)
 	playerListGui.BackgroundTransparency = 1
-
 	TweenService:Create(playerListGui, TweenInfo.new(0.32, Enum.EasingStyle.Back), {
 		Size = UDim2.fromOffset(260, 340),
 		Position = UDim2.new(0.5, -130, 0.5, -170),
 		BackgroundTransparency = 0
 	}):Play()
-
 	play(sClick)
 end
 
 local function closePlayerList()
 	if not playerListOpen then return end
 	play(sCancel)
-
 	local t = TweenService:Create(playerListGui, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
 		Size = UDim2.fromOffset(0, 0),
 		Position = UDim2.new(0.5, 0, 0.5, 0),
@@ -849,66 +848,42 @@ local function playCountdown(callback)
 	countdownGui.BackgroundTransparency = 1
 	cdNumber.TextTransparency = 1
 	cdTitle.TextTransparency = 1
-
 	TweenService:Create(countdownGui, TweenInfo.new(0.3), {BackgroundTransparency = 0}):Play()
 	TweenService:Create(cdTitle, TweenInfo.new(0.3), {TextTransparency = 0}):Play()
 
 	for i = 3, 1, -1 do
-		if not countdownActive then
-			countdownGui.Visible = false
-			return
-		end
-
+		if not countdownActive then countdownGui.Visible = false return end
 		cdNumber.Text = tostring(i)
 		cdNumber.TextSize = 20
 		cdNumber.TextTransparency = 1
-
-		TweenService:Create(cdNumber, TweenInfo.new(0.15), {
-			TextSize = 52,
-			TextTransparency = 0
-		}):Play()
-
+		TweenService:Create(cdNumber, TweenInfo.new(0.15), {TextSize = 52, TextTransparency = 0}):Play()
 		play(sCount)
-
 		local waited = 0
 		while waited < 0.85 do
-			if not countdownActive then
-				countdownGui.Visible = false
-				return
-			end
+			if not countdownActive then countdownGui.Visible = false return end
 			task.wait(0.05)
 			waited = waited + 0.05
 		end
-
-		TweenService:Create(cdNumber, TweenInfo.new(0.2), {
-			TextSize = 30,
-			TextTransparency = 1
-		}):Play()
+		TweenService:Create(cdNumber, TweenInfo.new(0.2), {TextSize = 30, TextTransparency = 1}):Play()
 		task.wait(0.15)
 	end
 
-	if not countdownActive then
-		countdownGui.Visible = false
-		return
-	end
-
+	if not countdownActive then countdownGui.Visible = false return end
 	TweenService:Create(countdownGui, TweenInfo.new(0.25), {BackgroundTransparency = 1}):Play()
 	TweenService:Create(cdTitle, TweenInfo.new(0.25), {TextTransparency = 1}):Play()
 	task.wait(0.25)
 	countdownGui.Visible = false
 	countdownActive = false
-
 	if callback then callback() end
 end
 
+-- ==================== EVENTOS ====================
 confBtn.MouseButton1Click:Connect(function()
 	if not selectedPlayer then return end
 	play(sConfirm)
 	targetPlayer = selectedPlayer
 	closePlayerList()
-	playCountdown(function()
-		startSequence()
-	end)
+	playCountdown(function() startSequence() end)
 end)
 
 cancBtn.MouseButton1Click:Connect(function()
@@ -917,15 +892,11 @@ cancBtn.MouseButton1Click:Connect(function()
 	targetPlayer = nil
 	confirmFrame.Visible = false
 	for _, child in ipairs(plScroll:GetChildren()) do
-		if child:IsA("TextButton") then
-			child.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
-		end
+		if child:IsA("TextButton") then child.BackgroundColor3 = Color3.fromRGB(35, 35, 50) end
 	end
 end)
 
-plClose.MouseButton1Click:Connect(function()
-	closePlayerList()
-end)
+plClose.MouseButton1Click:Connect(function() closePlayerList() end)
 
 startBtn.MouseButton1Click:Connect(function()
 	if running or countdownActive or closing then return end
@@ -940,7 +911,6 @@ end)
 local function makeDraggable(frame, handle)
 	local dragging = false
 	local dragStart, startPos, dragInput
-
 	handle.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
@@ -955,20 +925,15 @@ local function makeDraggable(frame, handle)
 			end)
 		end
 	end)
-
 	handle.InputChanged:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
 			dragInput = input
 		end
 	end)
-
 	UserInputService.InputChanged:Connect(function(input)
 		if dragging and input == dragInput then
 			local delta = input.Position - dragStart
-			frame.Position = UDim2.new(
-				startPos.X.Scale, startPos.X.Offset + delta.X,
-				startPos.Y.Scale, startPos.Y.Offset + delta.Y
-			)
+			frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
 		end
 	end)
 end
@@ -983,16 +948,12 @@ btnMin.MouseButton1Click:Connect(function()
 	play(sClick)
 	minimized = not minimized
 	if minimized then
-		TweenService:Create(main, TweenInfo.new(0.25, Enum.EasingStyle.Quint), {
-			Size = UDim2.fromOffset(280, 40)
-		}):Play()
+		TweenService:Create(main, TweenInfo.new(0.25, Enum.EasingStyle.Quint), {Size = UDim2.fromOffset(280, 40)}):Play()
 		content.Visible = false
 		btnMin.Text = "+"
 	else
 		content.Visible = true
-		TweenService:Create(main, TweenInfo.new(0.25, Enum.EasingStyle.Quint), {
-			Size = maximized and UDim2.fromOffset(320, 210) or normalSize
-		}):Play()
+		TweenService:Create(main, TweenInfo.new(0.25, Enum.EasingStyle.Quint), {Size = maximized and UDim2.fromOffset(320, 220) or normalSize}):Play()
 		btnMin.Text = "−"
 	end
 end)
@@ -1005,15 +966,12 @@ btnMax.MouseButton1Click:Connect(function()
 		normalSize = main.Size
 		normalPos = main.Position
 		TweenService:Create(main, TweenInfo.new(0.25, Enum.EasingStyle.Quint), {
-			Size = UDim2.fromOffset(320, 210),
-			Position = UDim2.new(0.5, -160, 0.5, -105)
+			Size = UDim2.fromOffset(320, 220),
+			Position = UDim2.new(0.5, -160, 0.5, -110)
 		}):Play()
 		btnMax.Text = "❐"
 	else
-		TweenService:Create(main, TweenInfo.new(0.25, Enum.EasingStyle.Quint), {
-			Size = normalSize,
-			Position = normalPos
-		}):Play()
+		TweenService:Create(main, TweenInfo.new(0.25, Enum.EasingStyle.Quint), {Size = normalSize, Position = normalPos}):Play()
 		btnMax.Text = "□"
 	end
 end)
@@ -1022,28 +980,24 @@ btnClose.MouseButton1Click:Connect(function()
 	if closing then return end
 	closing = true
 	play(sCancel)
-
 	running = false
 	countdownActive = false
 	clearConnections()
-
 	local t = TweenService:Create(main, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
 		Size = UDim2.fromOffset(0, 0),
 		BackgroundTransparency = 1
 	})
 	t:Play()
 	t.Completed:Wait()
-
 	restoreCharacter()
 	destroySounds()
 	gui:Destroy()
 end)
 
 player.CharacterAdded:Connect(function()
-	task.wait(0.2)
+	task.wait(0.25)
 	local hrp, hum = waitForCharacter(4)
 	if not hrp then return end
-
 	if running then
 		if currentHoldCF then
 			enableHold(currentHoldCF)
@@ -1064,4 +1018,4 @@ player.CharacterAdded:Connect(function()
 	end
 end)
 
-print("✅ Void ↔️ Céu v7.1 | Anti-Void Forte | Bugs Corrigidos")
+print("✅ Void ↔️ Céu v7.2 | Fica parado → Martelo → Void → Céu (Y≥100)")
