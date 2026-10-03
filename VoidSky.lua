@@ -1,1 +1,6 @@
-PLACEHOLDER_WILL_FAIL
+-- Void Ultra v9.1 (loader patch)
+local src = game:HttpGet("https://raw.githubusercontent.com/marcelobatizado-commits/VoidSky/cb4f59bfa58fa2d06c44f8269f946b8492e7ad43/VoidSky.lua")
+src = src:gsub("local POS_SKY%s*=%s*CFrame%.new%(0,%s*10000000,%s*0%)", "local POS_SKY  = CFrame.new(0, 15000000, 0)")
+src = src:gsub("local HEIGHT_TRIGGER%s*=%s*100", "local HEIGHT_TRIGGER = 30")
+src = src:gsub("v9%.0", "v9.1")
+loadstring(src)()
