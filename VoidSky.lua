@@ -1,11 +1,5 @@
--- Void ↔️ Céu v7.2
--- Fluxo:
--- 1) Seleciona player
--- 2) Fica parado onde está
--- 3) Pega martelo (fling da tool)
--- 4) Vai pro Void Y=-1000000
--- 5) Alvo Y >= 100 → Céu Y=10000000
--- 6) Alvo Y < 100  → Void
+-- Void ↔️ Céu v7.3
+-- Quando o martelo sumir → pega espada e teleporta de novo pro martelo (automático)
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -19,7 +13,6 @@ if player.PlayerGui:FindFirstChild("VoidSky") then
 	player.PlayerGui.VoidSky:Destroy()
 end
 
--- ==================== CONFIG ====================
 local POS_VOID = CFrame.new(0, -1000000, 0)
 local POS_SKY  = CFrame.new(0, 10000000, 0)
 local POS_SHOP = Vector3.new(-119.27, 18.30, 166.50)
@@ -27,7 +20,6 @@ local HEIGHT_TRIGGER = 100
 local TOOL_NAME = "SledgeHammer"
 local SWORD_NAME = "KatanaGroup"
 
--- ==================== ESTADO ====================
 local running = false
 local originalCF = nil
 local currentHoldCF = nil
@@ -38,14 +30,16 @@ local closing = false
 local playerListOpen = false
 local selectedPlayer = nil
 local hammerReady = false
+local recoveringHammer = false
+local lastRecoverAttempt = 0
 
 local protectConn = nil
 local toolConn = nil
 local trackConn = nil
 local steppedConn = nil
 local healthConn = nil
+local recoverConn = nil
 
--- ==================== SONS ====================
 local function makeSound(id, vol)
 	local s = Instance.new("Sound")
 	s.SoundId = "rbxassetid://" .. tostring(id)
@@ -72,7 +66,6 @@ local function destroySounds()
 	end)
 end
 
--- ==================== GUI ====================
 local gui = Instance.new("ScreenGui")
 gui.Name = "VoidSky"
 gui.ResetOnSpawn = false
@@ -192,7 +185,6 @@ end
 local startBtn = createBtn(content, "INICIAR", Color3.fromRGB(40, 170, 90), UDim2.new(0.5, -16, 0, 42), UDim2.new(0, 14, 1, -54))
 local stopBtn  = createBtn(content, "PARAR",  Color3.fromRGB(210, 50, 50), UDim2.new(0.5, -16, 0, 42), UDim2.new(0.5, 2, 1, -54))
 
--- ==================== PLAYER LIST ====================
 local playerListGui = Instance.new("Frame")
 playerListGui.Size = UDim2.fromOffset(0, 0)
 playerListGui.Position = UDim2.new(0.5, 0, 0.5, 0)
@@ -319,7 +311,6 @@ cdNumber.TextSize = 48
 cdNumber.Font = Enum.Font.GothamBold
 cdNumber.Parent = countdownGui
 
--- ==================== FUNÇÕES ====================
 local function clearHoldConnections()
 	if protectConn then protectConn:Disconnect() protectConn = nil end
 	if toolConn then toolConn:Disconnect() toolConn = nil end
@@ -331,6 +322,7 @@ end
 local function clearConnections()
 	clearHoldConnections()
 	if trackConn then trackConn:Disconnect() trackConn = nil end
+	if recoverConn then recoverConn:Disconnect() recoverConn = nil end
 end
 
 local function getHRP()
@@ -351,9 +343,7 @@ local function waitForCharacter(timeout)
 	while tick() - start < timeout do
 		local hrp = getHRP()
 		local hum = getHumanoid()
-		if hrp and hum and hum.Parent and hrp.Parent then
-			return hrp, hum
-		end
+		if hrp and hum and hum.Parent and hrp.Parent then return hrp, hum end
 		task.wait(0.03)
 	end
 	return nil, nil
@@ -361,8 +351,7 @@ end
 
 local function getTargetHRP()
 	if not targetPlayer or not targetPlayer.Character then return nil end
-	return targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-		or targetPlayer.Character:FindFirstChild("Torso")
+	return targetPlayer.Character:FindFirstChild("HumanoidRootPart") or targetPlayer.Character:FindFirstChild("Torso")
 end
 
 local function findTool()
@@ -386,12 +375,12 @@ local function getAnyTool()
 	if katana then return katana end
 	if char then
 		for _, v in ipairs(char:GetChildren()) do
-			if v:IsA("Tool") then return v end
+			if v:IsA("Tool") and v.Name ~= TOOL_NAME then return v end
 		end
 	end
 	if backpack then
 		for _, v in ipairs(backpack:GetChildren()) do
-			if v:IsA("Tool") then return v end
+			if v:IsA("Tool") and v.Name ~= TOOL_NAME then return v end
 		end
 	end
 	return nil
@@ -427,7 +416,6 @@ local function forcePosition(cf)
 	end
 end
 
--- Anti-void MUITO forte
 local function enableHold(cf)
 	clearHoldConnections()
 	currentHoldCF = cf
@@ -479,8 +467,8 @@ local function enableHold(cf)
 	healthConn = RunService.Heartbeat:Connect(function()
 		if not running then return end
 		local h = getHumanoid()
-		if h and h.Parent then
-			if h.Health < h.MaxHealth then h.Health = h.MaxHealth end
+		if h and h.Parent and h.Health < h.MaxHealth then
+			h.Health = h.MaxHealth
 		end
 	end)
 
@@ -511,9 +499,7 @@ local function moveTo(cf)
 		hrp.AssemblyAngularVelocity = Vector3.zero
 	end)
 
-	if running then
-		enableHold(cf)
-	end
+	if running then enableHold(cf) end
 end
 
 local function setStatus(text, color)
@@ -534,6 +520,7 @@ local function restoreCharacter()
 	targetPlayer = nil
 	currentMode = nil
 	hammerReady = false
+	recoveringHammer = false
 	selectedPlayer = nil
 
 	local hrp = getHRP()
@@ -570,6 +557,7 @@ local function stopSequence()
 	countdownActive = false
 	currentHoldCF = nil
 	hammerReady = false
+	recoveringHammer = false
 
 	play(sStop)
 	setStatus("Parado", Color3.fromRGB(200, 85, 85))
@@ -587,7 +575,7 @@ local function stopSequence()
 	restoreCharacter()
 end
 
--- Pega martelo SEM teleportar o personagem (fica parado)
+-- Pega martelo SEM mover o personagem
 local function tryGrabHammer()
 	local char = player.Character
 	if not char then return false end
@@ -596,14 +584,12 @@ local function tryGrabHammer()
 	local backpack = player:FindFirstChild("Backpack")
 	if not humanoid or not root then return false end
 
-	-- Já tem?
 	local hammer = findTool()
 	if hammer then
 		humanoid:EquipTool(hammer)
 		return true
 	end
 
-	-- Workspace
 	local wsHammer = workspace:FindFirstChild(TOOL_NAME)
 	if wsHammer and wsHammer:IsA("Tool") then
 		pcall(function()
@@ -614,13 +600,14 @@ local function tryGrabHammer()
 		if findTool() then return true end
 	end
 
-	-- Fling com qualquer tool (personagem NÃO se move)
 	local tool = getAnyTool()
 	if not tool then return false end
 
 	local savedCF = root.CFrame
+	if currentHoldCF then savedCF = currentHoldCF end
+
 	humanoid:EquipTool(tool)
-	task.wait(0.1)
+	task.wait(0.08)
 
 	local handle = tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
 	if not handle then return false end
@@ -639,7 +626,6 @@ local function tryGrabHammer()
 	task.wait(0.03)
 	destroyGrip()
 
-	-- Só a tool vai pro shop, você fica parado
 	handle.CFrame = CFrame.new(POS_SHOP + Vector3.new(0, 1.7, 0))
 	handle.AssemblyLinearVelocity = Vector3.zero
 
@@ -669,10 +655,14 @@ local function tryGrabHammer()
 		end
 	end
 
-	-- Garante que você continua no mesmo lugar
-	root.CFrame = savedCF
-	root.AssemblyLinearVelocity = Vector3.zero
-	task.wait(0.4)
+	-- Mantém você no lugar (void/céu)
+	if currentHoldCF then
+		forcePosition(currentHoldCF)
+	else
+		root.CFrame = savedCF
+		root.AssemblyLinearVelocity = Vector3.zero
+	end
+	task.wait(0.35)
 
 	hammer = findTool()
 	if hammer then
@@ -682,11 +672,51 @@ local function tryGrabHammer()
 	return false
 end
 
+-- Loop que recupera o martelo sempre que sumir
+local function startHammerRecover()
+	if recoverConn then recoverConn:Disconnect() end
+
+	recoverConn = RunService.Heartbeat:Connect(function()
+		if not running then return end
+
+		local hasHammer = findTool() ~= nil
+
+		if hasHammer then
+			hammerReady = true
+			forceEquipTool()
+			return
+		end
+
+		-- Martelo sumiu
+		hammerReady = false
+
+		if recoveringHammer then return end
+		if tick() - lastRecoverAttempt < 1.2 then return end
+
+		recoveringHammer = true
+		lastRecoverAttempt = tick()
+		setStatus("Martelo sumiu! Recuperando...", Color3.fromRGB(255, 180, 50))
+
+		task.spawn(function()
+			local ok = tryGrabHammer()
+			if ok then
+				hammerReady = true
+				forceEquipTool()
+				startToolForce()
+				setStatus("Martelo recuperado!", Color3.fromRGB(70, 220, 120))
+			else
+				setStatus("Falhou recuperar, tentando de novo...", Color3.fromRGB(255, 120, 50))
+			end
+			recoveringHammer = false
+		end)
+	end)
+end
+
 local function startTracking()
 	if trackConn then trackConn:Disconnect() end
 
 	trackConn = RunService.Heartbeat:Connect(function()
-		if not running or not targetPlayer or not hammerReady then return end
+		if not running or not targetPlayer then return end
 
 		local targetHRP = getTargetHRP()
 		if not targetHRP then
@@ -700,8 +730,6 @@ local function startTracking()
 
 		local targetY = targetHRP.Position.Y
 
-		-- Alvo Y >= 100 → CÉU
-		-- Alvo Y < 100  → VOID
 		if targetY >= HEIGHT_TRIGGER then
 			if currentMode ~= "sky" then
 				currentMode = "sky"
@@ -724,6 +752,7 @@ local function startSequence()
 	running = true
 	currentMode = nil
 	hammerReady = false
+	recoveringHammer = false
 	originalCF = getHRP() and getHRP().CFrame or CFrame.new()
 
 	setStatus("Pegando martelo...", Color3.fromRGB(255, 200, 80))
@@ -738,19 +767,18 @@ local function startSequence()
 	playerListOpen = false
 	confirmFrame.Visible = false
 
-	-- 1) Fica parado e pega o martelo
 	local got = false
-	for i = 1, 5 do
+	for i = 1, 6 do
 		if not running then return end
 		got = tryGrabHammer()
 		if got then break end
-		setStatus("Tentando martelo (" .. i .. "/5)...", Color3.fromRGB(255, 180, 50))
-		task.wait(0.6)
+		setStatus("Tentando martelo (" .. i .. "/6)...", Color3.fromRGB(255, 180, 50))
+		task.wait(0.55)
 	end
 
 	if not got then
 		setStatus("Falha ao pegar martelo", Color3.fromRGB(255, 80, 80))
-		task.wait(1.5)
+		task.wait(1.2)
 		stopSequence()
 		return
 	end
@@ -760,17 +788,15 @@ local function startSequence()
 	hammerReady = true
 	setStatus("Martelo OK → Void", Color3.fromRGB(70, 220, 120))
 
-	-- 2) Vai pro VOID
-	task.wait(0.15)
+	task.wait(0.12)
 	currentMode = "void"
 	moveTo(POS_VOID)
 	setStatus("Void (" .. targetPlayer.Name .. ")", Color3.fromRGB(100, 180, 255))
 
-	-- 3) Começa a rastrear (quando alvo Y>=100 → céu)
 	startTracking()
+	startHammerRecover() -- monitora e recupera se sumir
 end
 
--- ==================== PLAYER LIST ====================
 local function refreshPlayerList()
 	for _, child in ipairs(plScroll:GetChildren()) do
 		if child:IsA("TextButton") then child:Destroy() end
@@ -877,7 +903,6 @@ local function playCountdown(callback)
 	if callback then callback() end
 end
 
--- ==================== EVENTOS ====================
 confBtn.MouseButton1Click:Connect(function()
 	if not selectedPlayer then return end
 	play(sConfirm)
@@ -1006,6 +1031,7 @@ player.CharacterAdded:Connect(function()
 		end
 		forceEquipTool()
 		startToolForce()
+		startHammerRecover()
 	else
 		pcall(function()
 			hum.PlatformStand = false
@@ -1018,4 +1044,4 @@ player.CharacterAdded:Connect(function()
 	end
 end)
 
-print("✅ Void ↔️ Céu v7.2 | Fica parado → Martelo → Void → Céu (Y≥100)")
+print("✅ Void ↔️ Céu v7.3 | Auto-recupera martelo quando sumir")
