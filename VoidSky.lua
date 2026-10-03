@@ -1,7 +1,7 @@
--- Void ↔️ Céu v7.5
--- Anti-Void ULTRA: workspace.FallenPartsDestroyHeight = -math.huge
--- Fluxo: fica parado → pega martelo → void → céu quando alvo Y≥100
--- Recupera martelo se sumir | CFrame forçado a cada frame
+-- Void ↔️ Céu v8.0 ULTRA
+-- Void em Y = -100000 (melhor chance de outros te verem)
+-- Pega martelo: tenta 5s, se falhar TP até o martelo
+-- CFrame maximizado para replicar posição
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -15,17 +15,17 @@ if player.PlayerGui:FindFirstChild("VoidSky") then
 	player.PlayerGui.VoidSky:Destroy()
 end
 
--- ==================== ANTI-VOID ULTRA ====================
 pcall(function()
 	workspace.FallenPartsDestroyHeight = -math.huge
 end)
 
-local POS_VOID = CFrame.new(0, -1000000, 0)
+local POS_VOID = CFrame.new(0, -100000, 0)
 local POS_SKY  = CFrame.new(0, 10000000, 0)
 local POS_SHOP = Vector3.new(-119.27, 18.30, 166.50)
 local HEIGHT_TRIGGER = 100
 local TOOL_NAME = "SledgeHammer"
 local SWORD_NAME = "KatanaGroup"
+local GRAB_TIMEOUT = 5
 
 local running = false
 local originalCF = nil
@@ -46,7 +46,6 @@ local trackConn = nil
 local steppedConn = nil
 local healthConn = nil
 local recoverConn = nil
-local antiVoidConn = nil
 
 local function makeSound(id, vol)
 	local s = Instance.new("Sound")
@@ -81,9 +80,9 @@ gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = player:WaitForChild("PlayerGui")
 
 local main = Instance.new("Frame")
-main.Size = UDim2.fromOffset(280, 210)
-main.Position = UDim2.new(0.5, -140, 0.18, 0)
-main.BackgroundColor3 = Color3.fromRGB(15, 15, 21)
+main.Size = UDim2.fromOffset(290, 220)
+main.Position = UDim2.new(0.5, -145, 0.16, 0)
+main.BackgroundColor3 = Color3.fromRGB(12, 12, 18)
 main.BorderSizePixel = 0
 main.Active = true
 main.ClipsDescendants = true
@@ -91,13 +90,13 @@ main.Parent = gui
 Instance.new("UICorner", main).CornerRadius = UDim.new(0, 14)
 
 local stroke = Instance.new("UIStroke", main)
-stroke.Color = Color3.fromRGB(90, 90, 130)
-stroke.Thickness = 1.4
-stroke.Transparency = 0.25
+stroke.Color = Color3.fromRGB(80, 120, 255)
+stroke.Thickness = 1.6
+stroke.Transparency = 0.2
 
 local titleBar = Instance.new("Frame")
-titleBar.Size = UDim2.new(1, 0, 0, 40)
-titleBar.BackgroundColor3 = Color3.fromRGB(23, 23, 32)
+titleBar.Size = UDim2.new(1, 0, 0, 42)
+titleBar.BackgroundColor3 = Color3.fromRGB(20, 22, 32)
 titleBar.BorderSizePixel = 0
 titleBar.Parent = main
 Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 14)
@@ -106,8 +105,8 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -115, 1, 0)
 title.Position = UDim2.fromOffset(16, 0)
 title.BackgroundTransparency = 1
-title.Text = "Void ↔️ Céu"
-title.TextColor3 = Color3.fromRGB(235, 235, 245)
+title.Text = "Void ↔️ Céu ULTRA"
+title.TextColor3 = Color3.fromRGB(240, 240, 255)
 title.TextSize = 16
 title.Font = Enum.Font.GothamBold
 title.TextXAlignment = Enum.TextXAlignment.Left
@@ -134,17 +133,17 @@ local btnMax   = titleBtn("□", Color3.fromRGB(55, 140, 220), -70)
 local btnMin   = titleBtn("−", Color3.fromRGB(70, 70, 90), -104)
 
 local content = Instance.new("Frame")
-content.Size = UDim2.new(1, 0, 1, -40)
-content.Position = UDim2.fromOffset(0, 40)
+content.Size = UDim2.new(1, 0, 1, -42)
+content.Position = UDim2.fromOffset(0, 42)
 content.BackgroundTransparency = 1
 content.Parent = main
 
 local info = Instance.new("TextLabel")
-info.Size = UDim2.new(1, -28, 0, 70)
+info.Size = UDim2.new(1, -28, 0, 72)
 info.Position = UDim2.fromOffset(14, 6)
 info.BackgroundTransparency = 1
-info.Text = "1. Escolhe o player\n2. Pega martelo (fica parado)\n3. Void → Céu (alvo Y≥100)\n4. Anti-Void ULTRA ativo"
-info.TextColor3 = Color3.fromRGB(165, 165, 185)
+info.Text = "1. Escolhe o player\n2. Martelo (5s ou TP na loja)\n3. Void Y=-100k → Céu (alvo Y≥100)\n4. Anti-void + replica máxima"
+info.TextColor3 = Color3.fromRGB(160, 165, 190)
 info.TextSize = 12
 info.Font = Enum.Font.Gotham
 info.TextXAlignment = Enum.TextXAlignment.Left
@@ -153,7 +152,7 @@ info.Parent = content
 
 local status = Instance.new("TextLabel")
 status.Size = UDim2.new(1, -28, 0, 18)
-status.Position = UDim2.fromOffset(14, 80)
+status.Position = UDim2.fromOffset(14, 84)
 status.BackgroundTransparency = 1
 status.Text = "Status: Parado"
 status.TextColor3 = Color3.fromRGB(200, 85, 85)
@@ -196,7 +195,7 @@ local stopBtn  = createBtn(content, "PARAR",  Color3.fromRGB(210, 50, 50), UDim2
 local playerListGui = Instance.new("Frame")
 playerListGui.Size = UDim2.fromOffset(0, 0)
 playerListGui.Position = UDim2.new(0.5, 0, 0.5, 0)
-playerListGui.BackgroundColor3 = Color3.fromRGB(15, 15, 21)
+playerListGui.BackgroundColor3 = Color3.fromRGB(12, 12, 18)
 playerListGui.BorderSizePixel = 0
 playerListGui.Visible = false
 playerListGui.Active = true
@@ -205,13 +204,13 @@ playerListGui.Parent = gui
 Instance.new("UICorner", playerListGui).CornerRadius = UDim.new(0, 14)
 
 local plStroke = Instance.new("UIStroke", playerListGui)
-plStroke.Color = Color3.fromRGB(90, 90, 130)
-plStroke.Thickness = 1.4
-plStroke.Transparency = 0.25
+plStroke.Color = Color3.fromRGB(80, 120, 255)
+plStroke.Thickness = 1.5
+plStroke.Transparency = 0.2
 
 local plTitleBar = Instance.new("Frame")
 plTitleBar.Size = UDim2.new(1, 0, 0, 40)
-plTitleBar.BackgroundColor3 = Color3.fromRGB(23, 23, 32)
+plTitleBar.BackgroundColor3 = Color3.fromRGB(20, 22, 32)
 plTitleBar.BorderSizePixel = 0
 plTitleBar.Parent = playerListGui
 Instance.new("UICorner", plTitleBar).CornerRadius = UDim.new(0, 14)
@@ -289,14 +288,14 @@ Instance.new("UICorner", cancBtn).CornerRadius = UDim.new(0, 8)
 local countdownGui = Instance.new("Frame")
 countdownGui.Size = UDim2.fromOffset(220, 120)
 countdownGui.Position = UDim2.new(0.5, -110, 0.4, 0)
-countdownGui.BackgroundColor3 = Color3.fromRGB(15, 15, 21)
+countdownGui.BackgroundColor3 = Color3.fromRGB(12, 12, 18)
 countdownGui.BorderSizePixel = 0
 countdownGui.Visible = false
 countdownGui.Parent = gui
 Instance.new("UICorner", countdownGui).CornerRadius = UDim.new(0, 14)
 
 local cdStroke = Instance.new("UIStroke", countdownGui)
-cdStroke.Color = Color3.fromRGB(90, 90, 130)
+cdStroke.Color = Color3.fromRGB(80, 120, 255)
 cdStroke.Thickness = 1.5
 
 local cdTitle = Instance.new("TextLabel")
@@ -331,7 +330,6 @@ local function clearConnections()
 	clearHoldConnections()
 	if trackConn then trackConn:Disconnect() trackConn = nil end
 	if recoverConn then recoverConn:Disconnect() recoverConn = nil end
-	if antiVoidConn then antiVoidConn:Disconnect() antiVoidConn = nil end
 end
 
 local function getHRP()
@@ -428,16 +426,12 @@ local function forcePosition(cf)
 	end)
 end
 
--- Anti-void contínuo (sempre ativo enquanto running)
 local function applyAntiVoid()
 	pcall(function()
 		workspace.FallenPartsDestroyHeight = -math.huge
 	end)
-
 	local hum = getHumanoid()
-	local hrp = getHRP()
 	if not hum or not hum.Parent then return end
-
 	pcall(function()
 		hum.Health = hum.MaxHealth
 		hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
@@ -449,6 +443,7 @@ local function applyAntiVoid()
 		hum.WalkSpeed = 0
 		hum.JumpPower = 0
 		hum.JumpHeight = 0
+		hum.AutoRotate = false
 		pcall(function() hum:ChangeState(Enum.HumanoidStateType.Physics) end)
 	end)
 end
@@ -462,7 +457,12 @@ local function enableHold(cf)
 
 	applyAntiVoid()
 	hrp.Anchored = false
-	forcePosition(cf)
+
+	-- Burst de escrita pra "grudar" no servidor
+	for i = 1, 12 do
+		forcePosition(cf)
+		task.wait()
+	end
 
 	RunService:BindToRenderStep("VoidSkyHold", Enum.RenderPriority.Last.Value + 50, function()
 		if not running or not currentHoldCF then return end
@@ -498,7 +498,8 @@ local function moveTo(cf)
 	currentHoldCF = nil
 	applyAntiVoid()
 
-	for i = 1, 10 do
+	-- Várias escritas seguidas (ajuda replicação)
+	for i = 1, 15 do
 		pcall(function()
 			local char = player.Character
 			if char then char:PivotTo(cf) end
@@ -572,8 +573,8 @@ local function stopSequence()
 	play(sStop)
 	setStatus("Parado", Color3.fromRGB(200, 85, 85))
 	if title and title.Parent then
-		title.Text = "Void ↔️ Céu"
-		title.TextColor3 = Color3.fromRGB(235, 235, 245)
+		title.Text = "Void ↔️ Céu ULTRA"
+		title.TextColor3 = Color3.fromRGB(240, 240, 255)
 	end
 
 	countdownGui.Visible = false
@@ -585,7 +586,7 @@ local function stopSequence()
 	restoreCharacter()
 end
 
-local function tryGrabHammer()
+local function tryGrabHammerOnce()
 	local char = player.Character
 	if not char then return false end
 	local humanoid = char:FindFirstChildOfClass("Humanoid")
@@ -603,7 +604,7 @@ local function tryGrabHammer()
 	if wsHammer and wsHammer:IsA("Tool") then
 		pcall(function()
 			wsHammer.Parent = backpack
-			task.wait(0.05)
+			task.wait(0.04)
 			humanoid:EquipTool(wsHammer)
 		end)
 		if findTool() then return true end
@@ -614,7 +615,7 @@ local function tryGrabHammer()
 
 	local savedCF = currentHoldCF or root.CFrame
 	humanoid:EquipTool(tool)
-	task.wait(0.08)
+	task.wait(0.06)
 
 	local handle = tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
 	if not handle then return false end
@@ -630,7 +631,7 @@ local function tryGrabHammer()
 	end
 
 	destroyGrip()
-	task.wait(0.03)
+	task.wait(0.02)
 	destroyGrip()
 
 	handle.CFrame = CFrame.new(POS_SHOP + Vector3.new(0, 1.7, 0))
@@ -651,13 +652,13 @@ local function tryGrabHammer()
 			end
 		end
 		if target then
-			for i = 1, 8 do
+			for i = 1, 6 do
 				pcall(function()
 					firetouchinterest(handle, target, 0)
-					task.wait(0.012)
+					task.wait(0.01)
 					firetouchinterest(handle, target, 1)
 				end)
-				task.wait(0.015)
+				task.wait(0.012)
 			end
 		end
 	end
@@ -668,7 +669,7 @@ local function tryGrabHammer()
 		root.CFrame = savedCF
 		root.AssemblyLinearVelocity = Vector3.zero
 	end
-	task.wait(0.35)
+	task.wait(0.25)
 
 	hammer = findTool()
 	if hammer then
@@ -676,6 +677,40 @@ local function tryGrabHammer()
 		return true
 	end
 	return false
+end
+
+-- Tenta 5 segundos; se falhar, TP até o martelo e pega
+local function tryGrabHammerWithTimeout()
+	local start = tick()
+	while tick() - start < GRAB_TIMEOUT do
+		if not running then return false end
+		if tryGrabHammerOnce() then return true end
+		setStatus(string.format("Pegando martelo... %.1fs", tick() - start), Color3.fromRGB(255, 190, 60))
+		task.wait(0.35)
+	end
+
+	-- Timeout: teleporta até a loja do martelo
+	setStatus("TP até o martelo...", Color3.fromRGB(255, 140, 40))
+	local hrp = getHRP()
+	local hum = getHumanoid()
+	if hrp and hum then
+		pcall(function()
+			local cf = CFrame.new(POS_SHOP + Vector3.new(0, 4, 0))
+			for i = 1, 8 do
+				hrp.CFrame = cf
+				hrp.AssemblyLinearVelocity = Vector3.zero
+				task.wait()
+			end
+		end)
+		task.wait(0.4)
+		-- Tenta pegar no local
+		for i = 1, 8 do
+			if not running then return false end
+			if tryGrabHammerOnce() then return true end
+			task.wait(0.25)
+		end
+	end
+	return findTool() ~= nil
 end
 
 local function startHammerRecover()
@@ -692,18 +727,22 @@ local function startHammerRecover()
 
 		hammerReady = false
 		if recoveringHammer then return end
-		if tick() - lastRecoverAttempt < 1.2 then return end
+		if tick() - lastRecoverAttempt < 1.5 then return end
 
 		recoveringHammer = true
 		lastRecoverAttempt = tick()
 		setStatus("Martelo sumiu! Recuperando...", Color3.fromRGB(255, 180, 50))
 
 		task.spawn(function()
-			local ok = tryGrabHammer()
+			local ok = tryGrabHammerWithTimeout()
 			if ok then
 				hammerReady = true
 				forceEquipTool()
 				startToolForce()
+				-- Volta pro hold se estava no void/céu
+				if currentHoldCF and running then
+					moveTo(currentHoldCF)
+				end
 				setStatus("Martelo recuperado!", Color3.fromRGB(70, 220, 120))
 			else
 				setStatus("Falhou recuperar...", Color3.fromRGB(255, 120, 50))
@@ -756,11 +795,10 @@ local function startSequence()
 	recoveringHammer = false
 	originalCF = getHRP() and getHRP().CFrame or CFrame.new()
 
-	-- Anti-void desde o começo
 	pcall(function() workspace.FallenPartsDestroyHeight = -math.huge end)
 	applyAntiVoid()
 
-	setStatus("Pegando martelo...", Color3.fromRGB(255, 200, 80))
+	setStatus("Pegando martelo (5s)...", Color3.fromRGB(255, 200, 80))
 	play(sStart)
 	if title and title.Parent then
 		title.Text = "⚡ " .. targetPlayer.Name
@@ -772,14 +810,7 @@ local function startSequence()
 	playerListOpen = false
 	confirmFrame.Visible = false
 
-	local got = false
-	for i = 1, 6 do
-		if not running then return end
-		got = tryGrabHammer()
-		if got then break end
-		setStatus("Tentando martelo (" .. i .. "/6)...", Color3.fromRGB(255, 180, 50))
-		task.wait(0.55)
-	end
+	local got = tryGrabHammerWithTimeout()
 
 	if not got then
 		setStatus("Falha ao pegar martelo", Color3.fromRGB(255, 80, 80))
@@ -791,9 +822,9 @@ local function startSequence()
 	forceEquipTool()
 	startToolForce()
 	hammerReady = true
-	setStatus("Martelo OK → Void", Color3.fromRGB(70, 220, 120))
+	setStatus("Martelo OK → Void -100k", Color3.fromRGB(70, 220, 120))
 
-	task.wait(0.12)
+	task.wait(0.1)
 	currentMode = "void"
 	moveTo(POS_VOID)
 	setStatus("Void (" .. targetPlayer.Name .. ")", Color3.fromRGB(100, 180, 255))
@@ -814,7 +845,7 @@ local function refreshPlayerList()
 		if plr ~= player then
 			local btn = Instance.new("TextButton")
 			btn.Size = UDim2.new(1, -4, 0, 36)
-			btn.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
+			btn.BackgroundColor3 = Color3.fromRGB(30, 32, 48)
 			btn.Text = plr.Name
 			btn.TextColor3 = Color3.new(1, 1, 1)
 			btn.TextSize = 14
@@ -829,9 +860,9 @@ local function refreshPlayerList()
 				selectedPlayer = plr
 				targetPlayer = plr
 				for _, child in ipairs(plScroll:GetChildren()) do
-					if child:IsA("TextButton") then child.BackgroundColor3 = Color3.fromRGB(35, 35, 50) end
+					if child:IsA("TextButton") then child.BackgroundColor3 = Color3.fromRGB(30, 32, 48) end
 				end
-				btn.BackgroundColor3 = Color3.fromRGB(55, 90, 140)
+				btn.BackgroundColor3 = Color3.fromRGB(50, 90, 180)
 				confirmFrame.Visible = true
 			end)
 			ySize = ySize + 42
@@ -922,7 +953,7 @@ cancBtn.MouseButton1Click:Connect(function()
 	targetPlayer = nil
 	confirmFrame.Visible = false
 	for _, child in ipairs(plScroll:GetChildren()) do
-		if child:IsA("TextButton") then child.BackgroundColor3 = Color3.fromRGB(35, 35, 50) end
+		if child:IsA("TextButton") then child.BackgroundColor3 = Color3.fromRGB(30, 32, 48) end
 	end
 end)
 
@@ -978,12 +1009,12 @@ btnMin.MouseButton1Click:Connect(function()
 	play(sClick)
 	minimized = not minimized
 	if minimized then
-		TweenService:Create(main, TweenInfo.new(0.25, Enum.EasingStyle.Quint), {Size = UDim2.fromOffset(280, 40)}):Play()
+		TweenService:Create(main, TweenInfo.new(0.25, Enum.EasingStyle.Quint), {Size = UDim2.fromOffset(290, 42)}):Play()
 		content.Visible = false
 		btnMin.Text = "+"
 	else
 		content.Visible = true
-		TweenService:Create(main, TweenInfo.new(0.25, Enum.EasingStyle.Quint), {Size = maximized and UDim2.fromOffset(320, 230) or normalSize}):Play()
+		TweenService:Create(main, TweenInfo.new(0.25, Enum.EasingStyle.Quint), {Size = maximized and UDim2.fromOffset(330, 240) or normalSize}):Play()
 		btnMin.Text = "−"
 	end
 end)
@@ -996,8 +1027,8 @@ btnMax.MouseButton1Click:Connect(function()
 		normalSize = main.Size
 		normalPos = main.Position
 		TweenService:Create(main, TweenInfo.new(0.25, Enum.EasingStyle.Quint), {
-			Size = UDim2.fromOffset(320, 230),
-			Position = UDim2.new(0.5, -160, 0.5, -115)
+			Size = UDim2.fromOffset(330, 240),
+			Position = UDim2.new(0.5, -165, 0.5, -120)
 		}):Play()
 		btnMax.Text = "❐"
 	else
@@ -1051,7 +1082,6 @@ player.CharacterAdded:Connect(function()
 	end
 end)
 
--- Anti-void global desde o load (mesmo parado)
 pcall(function() workspace.FallenPartsDestroyHeight = -math.huge end)
 
-print("✅ Void ↔️ Céu v7.5 | Anti-Void ULTRA (FallenPartsDestroyHeight = -math.huge)")
+print("✅ Void ↔️ Céu v8.0 ULTRA | Void Y=-100000 | Grab 5s + TP loja | Max replica")
