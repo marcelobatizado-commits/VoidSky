@@ -1,7 +1,7 @@
--- Void ↔️ Céu v7.4
--- Anti-void com CFrame forçado a cada frame (tenta replicar para todos)
+-- Void ↔️ Céu v7.5
+-- Anti-Void ULTRA: workspace.FallenPartsDestroyHeight = -math.huge
 -- Fluxo: fica parado → pega martelo → void → céu quando alvo Y≥100
--- Recupera martelo se sumir
+-- Recupera martelo se sumir | CFrame forçado a cada frame
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -14,6 +14,11 @@ local player = Players.LocalPlayer
 if player.PlayerGui:FindFirstChild("VoidSky") then
 	player.PlayerGui.VoidSky:Destroy()
 end
+
+-- ==================== ANTI-VOID ULTRA ====================
+pcall(function()
+	workspace.FallenPartsDestroyHeight = -math.huge
+end)
 
 local POS_VOID = CFrame.new(0, -1000000, 0)
 local POS_SKY  = CFrame.new(0, 10000000, 0)
@@ -41,7 +46,7 @@ local trackConn = nil
 local steppedConn = nil
 local healthConn = nil
 local recoverConn = nil
-local replicateConn = nil
+local antiVoidConn = nil
 
 local function makeSound(id, vol)
 	local s = Instance.new("Sound")
@@ -76,7 +81,7 @@ gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = player:WaitForChild("PlayerGui")
 
 local main = Instance.new("Frame")
-main.Size = UDim2.fromOffset(280, 200)
+main.Size = UDim2.fromOffset(280, 210)
 main.Position = UDim2.new(0.5, -140, 0.18, 0)
 main.BackgroundColor3 = Color3.fromRGB(15, 15, 21)
 main.BorderSizePixel = 0
@@ -135,10 +140,10 @@ content.BackgroundTransparency = 1
 content.Parent = main
 
 local info = Instance.new("TextLabel")
-info.Size = UDim2.new(1, -28, 0, 62)
-info.Position = UDim2.fromOffset(14, 8)
+info.Size = UDim2.new(1, -28, 0, 70)
+info.Position = UDim2.fromOffset(14, 6)
 info.BackgroundTransparency = 1
-info.Text = "1. Escolhe o player\n2. Pega o martelo (fica parado)\n3. Void → Céu quando alvo Y≥100"
+info.Text = "1. Escolhe o player\n2. Pega martelo (fica parado)\n3. Void → Céu (alvo Y≥100)\n4. Anti-Void ULTRA ativo"
 info.TextColor3 = Color3.fromRGB(165, 165, 185)
 info.TextSize = 12
 info.Font = Enum.Font.Gotham
@@ -148,7 +153,7 @@ info.Parent = content
 
 local status = Instance.new("TextLabel")
 status.Size = UDim2.new(1, -28, 0, 18)
-status.Position = UDim2.fromOffset(14, 74)
+status.Position = UDim2.fromOffset(14, 80)
 status.BackgroundTransparency = 1
 status.Text = "Status: Parado"
 status.TextColor3 = Color3.fromRGB(200, 85, 85)
@@ -319,15 +324,14 @@ local function clearHoldConnections()
 	if toolConn then toolConn:Disconnect() toolConn = nil end
 	if steppedConn then steppedConn:Disconnect() steppedConn = nil end
 	if healthConn then healthConn:Disconnect() healthConn = nil end
-	if replicateConn then replicateConn:Disconnect() replicateConn = nil end
 	pcall(function() RunService:UnbindFromRenderStep("VoidSkyHold") end)
-	pcall(function() RunService:UnbindFromRenderStep("VoidSkyReplicate") end)
 end
 
 local function clearConnections()
 	clearHoldConnections()
 	if trackConn then trackConn:Disconnect() trackConn = nil end
 	if recoverConn then recoverConn:Disconnect() recoverConn = nil end
+	if antiVoidConn then antiVoidConn:Disconnect() antiVoidConn = nil end
 end
 
 local function getHRP()
@@ -410,22 +414,42 @@ local function startToolForce()
 	end)
 end
 
--- FORÇA CFrame de forma que tende a replicar (network ownership do character)
 local function forcePosition(cf)
 	local char = player.Character
 	local hrp = getHRP()
 	if not hrp or not hrp.Parent then return end
-
 	pcall(function()
-		-- PivotTo no modelo inteiro ajuda a sincronizar
-		if char then
-			char:PivotTo(cf)
-		end
+		if char then char:PivotTo(cf) end
 		hrp.CFrame = cf
 		hrp.AssemblyLinearVelocity = Vector3.zero
 		hrp.AssemblyAngularVelocity = Vector3.zero
-		hrp.Velocity = Vector3.zero
-		hrp.RotVelocity = Vector3.zero
+		pcall(function() hrp.Velocity = Vector3.zero end)
+		pcall(function() hrp.RotVelocity = Vector3.zero end)
+	end)
+end
+
+-- Anti-void contínuo (sempre ativo enquanto running)
+local function applyAntiVoid()
+	pcall(function()
+		workspace.FallenPartsDestroyHeight = -math.huge
+	end)
+
+	local hum = getHumanoid()
+	local hrp = getHRP()
+	if not hum or not hum.Parent then return end
+
+	pcall(function()
+		hum.Health = hum.MaxHealth
+		hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+		hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+		hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+		hum:SetStateEnabled(Enum.HumanoidStateType.Flying, false)
+		hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)
+		hum.PlatformStand = true
+		hum.WalkSpeed = 0
+		hum.JumpPower = 0
+		hum.JumpHeight = 0
+		pcall(function() hum:ChangeState(Enum.HumanoidStateType.Physics) end)
 	end)
 end
 
@@ -436,68 +460,30 @@ local function enableHold(cf)
 	local hrp, hum = waitForCharacter(3)
 	if not hrp or not hum then return end
 
-	-- Estado Physics = client controla física e CFrame replica melhor
-	pcall(function()
-		hum:ChangeState(Enum.HumanoidStateType.Physics)
-		hum.PlatformStand = true
-		hum.WalkSpeed = 0
-		hum.JumpPower = 0
-		hum.JumpHeight = 0
-		hum.AutoRotate = false
-		hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-		hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-		hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-		hum:SetStateEnabled(Enum.HumanoidStateType.Flying, false)
-		hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)
-		hum.Health = hum.MaxHealth
-	end)
-
-	hrp.Anchored = false -- NÃO ancorar: ancorado NÃO replica bem / quebra martelo
+	applyAntiVoid()
+	hrp.Anchored = false
 	forcePosition(cf)
 
-	-- RenderStep prioritário (você vê instantâneo)
 	RunService:BindToRenderStep("VoidSkyHold", Enum.RenderPriority.Last.Value + 50, function()
 		if not running or not currentHoldCF then return end
 		forcePosition(currentHoldCF)
+		applyAntiVoid()
 	end)
 
-	-- Heartbeat (física + tende a mandar pro servidor)
 	protectConn = RunService.Heartbeat:Connect(function()
 		if not running or not currentHoldCF then return end
 		forcePosition(currentHoldCF)
-
-		local h = getHumanoid()
-		if h and h.Parent then
-			h.Health = h.MaxHealth
-			h.PlatformStand = true
-			pcall(function() h:ChangeState(Enum.HumanoidStateType.Physics) end)
-		end
+		applyAntiVoid()
 	end)
 
-	-- Stepped (antes da física)
 	steppedConn = RunService.Stepped:Connect(function()
 		if not running or not currentHoldCF then return end
 		forcePosition(currentHoldCF)
 	end)
 
-	-- Extra: força de novo no fim do frame (ajuda replicação)
-	replicateConn = RunService.Heartbeat:Connect(function()
-		if not running or not currentHoldCF then return end
-		local root = getHRP()
-		if root and root.Parent then
-			pcall(function()
-				root.CFrame = currentHoldCF
-				root.AssemblyLinearVelocity = Vector3.zero
-			end)
-		end
-	end)
-
 	healthConn = RunService.Heartbeat:Connect(function()
 		if not running then return end
-		local h = getHumanoid()
-		if h and h.Parent and h.Health < h.MaxHealth then
-			h.Health = h.MaxHealth
-		end
+		applyAntiVoid()
 	end)
 
 	startToolForce()
@@ -510,18 +496,9 @@ local function moveTo(cf)
 
 	clearHoldConnections()
 	currentHoldCF = nil
+	applyAntiVoid()
 
-	pcall(function()
-		hum:ChangeState(Enum.HumanoidStateType.Physics)
-		hum.PlatformStand = true
-		hum.WalkSpeed = 0
-		hum.JumpPower = 0
-		hum.JumpHeight = 0
-		hum.AutoRotate = false
-	end)
-
-	-- Várias escritas seguidas pra “grudar” no servidor
-	for i = 1, 8 do
+	for i = 1, 10 do
 		pcall(function()
 			local char = player.Character
 			if char then char:PivotTo(cf) end
@@ -707,8 +684,7 @@ local function startHammerRecover()
 	recoverConn = RunService.Heartbeat:Connect(function()
 		if not running then return end
 
-		local hasHammer = findTool() ~= nil
-		if hasHammer then
+		if findTool() then
 			hammerReady = true
 			forceEquipTool()
 			return
@@ -730,7 +706,7 @@ local function startHammerRecover()
 				startToolForce()
 				setStatus("Martelo recuperado!", Color3.fromRGB(70, 220, 120))
 			else
-				setStatus("Falhou recuperar, tentando...", Color3.fromRGB(255, 120, 50))
+				setStatus("Falhou recuperar...", Color3.fromRGB(255, 120, 50))
 			end
 			recoveringHammer = false
 		end)
@@ -779,6 +755,10 @@ local function startSequence()
 	hammerReady = false
 	recoveringHammer = false
 	originalCF = getHRP() and getHRP().CFrame or CFrame.new()
+
+	-- Anti-void desde o começo
+	pcall(function() workspace.FallenPartsDestroyHeight = -math.huge end)
+	applyAntiVoid()
 
 	setStatus("Pegando martelo...", Color3.fromRGB(255, 200, 80))
 	play(sStart)
@@ -1003,7 +983,7 @@ btnMin.MouseButton1Click:Connect(function()
 		btnMin.Text = "+"
 	else
 		content.Visible = true
-		TweenService:Create(main, TweenInfo.new(0.25, Enum.EasingStyle.Quint), {Size = maximized and UDim2.fromOffset(320, 220) or normalSize}):Play()
+		TweenService:Create(main, TweenInfo.new(0.25, Enum.EasingStyle.Quint), {Size = maximized and UDim2.fromOffset(320, 230) or normalSize}):Play()
 		btnMin.Text = "−"
 	end
 end)
@@ -1016,8 +996,8 @@ btnMax.MouseButton1Click:Connect(function()
 		normalSize = main.Size
 		normalPos = main.Position
 		TweenService:Create(main, TweenInfo.new(0.25, Enum.EasingStyle.Quint), {
-			Size = UDim2.fromOffset(320, 220),
-			Position = UDim2.new(0.5, -160, 0.5, -110)
+			Size = UDim2.fromOffset(320, 230),
+			Position = UDim2.new(0.5, -160, 0.5, -115)
 		}):Play()
 		btnMax.Text = "❐"
 	else
@@ -1046,9 +1026,11 @@ end)
 
 player.CharacterAdded:Connect(function()
 	task.wait(0.25)
+	pcall(function() workspace.FallenPartsDestroyHeight = -math.huge end)
 	local hrp, hum = waitForCharacter(4)
 	if not hrp then return end
 	if running then
+		applyAntiVoid()
 		if currentHoldCF then
 			enableHold(currentHoldCF)
 		else
@@ -1069,4 +1051,7 @@ player.CharacterAdded:Connect(function()
 	end
 end)
 
-print("✅ Void ↔️ Céu v7.4 | CFrame forçado a cada frame (tenta aparecer pro pessoal)")
+-- Anti-void global desde o load (mesmo parado)
+pcall(function() workspace.FallenPartsDestroyHeight = -math.huge end)
+
+print("✅ Void ↔️ Céu v7.5 | Anti-Void ULTRA (FallenPartsDestroyHeight = -math.huge)")
