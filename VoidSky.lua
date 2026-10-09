@@ -1,36 +1,28 @@
 -- ============================================================
--- VOID ULTRA v10.2
--- Espadas: KatanaGroup > LightSword > AzureSword
--- Recover martelo + morte ordem certa
--- GUI mais bonita (botoes, animacao, visual)
--- Caixa de texto + anti-void auto
+-- VOID ULTRA v11 SUPER
+-- AntiVoid/God: verde=ON vermelho=OFF
+-- Caixa de texto: comeca DESLIGADA
+-- Ligar caixa = abre lista de players (sem precisar martelo)
+-- INICIAR principal = liga caixa sozinha
+-- So reage a ;fly / ;fly me / ;fly nome
 -- ============================================================
 
 local Players = game:GetService("Players")
 local TextChatService = game:GetService("TextChatService")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 
 local ok, err = pcall(function()
 	local src = game:HttpGet("https://raw.githubusercontent.com/marcelobatizado-commits/VoidSky/cb4f59bfa58fa2d06c44f8269f946b8492e7ad43/VoidSky.lua")
-
 	src = string.gsub(src, "%-100000", "-500000")
 	src = string.gsub(src, "10000000", "15000000")
 	src = string.gsub(src, "HEIGHT_TRIGGER = 100", "HEIGHT_TRIGGER = 30")
-	src = string.gsub(src, "v9%.0", "v10.2")
-	src = string.gsub(src, "VOID ULTRA v9", "VOID ULTRA v10")
+	src = string.gsub(src, "v9%.0", "v11")
+	src = string.gsub(src, "VOID ULTRA v9", "VOID ULTRA v11")
 
-	-- ===== espadas prioritarias =====
-	local oldGet = [[local function getAnyTool()
-	local char, bp = player.Character, player:FindFirstChild("Backpack")
-	local katana = (char and char:FindFirstChild(SWORD_NAME)) or (bp and bp:FindFirstChild(SWORD_NAME))
-	if katana then return katana end
-	if char then for _, v in ipairs(char:GetChildren()) do if v:IsA("Tool") and v.Name ~= TOOL_NAME then return v end end end
-	if bp then for _, v in ipairs(bp:GetChildren()) do if v:IsA("Tool") and v.Name ~= TOOL_NAME then return v end end end
-	return nil
-end]]
-
+	-- espadas
 	local newGet = [[local function getAnyTool()
 	local char, bp = player.Character, player:FindFirstChild("Backpack")
 	local order = { "KatanaGroup", "LightSword", "AzureSword", SWORD_NAME }
@@ -42,17 +34,15 @@ end]]
 	if bp then for _, v in ipairs(bp:GetChildren()) do if v:IsA("Tool") and v.Name ~= TOOL_NAME then return v end end end
 	return nil
 end]]
-
-	if string.find(src, "local function getAnyTool", 1, true) then
+	do
 		local a = string.find(src, "local function getAnyTool", 1, true)
 		local b = string.find(src, "local function forcePosition", 1, true)
 		if a and b and b > a then
 			src = string.sub(src, 1, a - 1) .. newGet .. "\n\n" .. string.sub(src, b)
-			print("[v10.2] getAnyTool: KatanaGroup > LightSword > AzureSword")
 		end
 	end
 
-	-- ===== tryGrabWithTimeout melhorado =====
+	-- tryGrab melhorado
 	local newGrab = [[local function tryGrabWithTimeout()
 	local savedHold = currentHoldCF
 	local t0 = tick()
@@ -70,14 +60,12 @@ end]]
 	for i = 1, 20 do
 		if not running then return false end
 		local hrp = getHRP()
-		if hrp then
-			pcall(function()
-				local char = player.Character
-				if char then char:PivotTo(shopCF) end
-				hrp.CFrame = shopCF
-				hrp.AssemblyLinearVelocity = Vector3.zero
-			end)
-		end
+		if hrp then pcall(function()
+			local char = player.Character
+			if char then char:PivotTo(shopCF) end
+			hrp.CFrame = shopCF
+			hrp.AssemblyLinearVelocity = Vector3.zero
+		end) end
 		task.wait()
 	end
 	task.wait(0.35)
@@ -99,17 +87,15 @@ end]]
 	end
 	return got
 end]]
-
 	do
 		local a = string.find(src, "local function tryGrabWithTimeout", 1, true)
 		local b = string.find(src, "local function startHammerRecover", 1, true)
 		if a and b and b > a then
 			src = string.sub(src, 1, a - 1) .. newGrab .. "\n\n" .. string.sub(src, b)
-			print("[v10.2] tryGrabWithTimeout OK")
 		end
 	end
 
-	-- ===== CharacterAdded: martelo antes do void =====
+	-- CharacterAdded
 	local newChar = [[player.CharacterAdded:Connect(function()
 	task.wait(0.35)
 	setFallenHeight()
@@ -135,13 +121,11 @@ end]]
 	end
 	if godModeEnabled and hum then applyHumanoidProtect(hum) end
 end)]]
-
 	do
 		local a = string.find(src, "player.CharacterAdded:Connect", 1, true)
 		local endMark = a and string.find(src, "print(", a, true)
 		if a and endMark then
 			src = string.sub(src, 1, a - 1) .. newChar .. "\n\n" .. string.sub(src, endMark)
-			print("[v10.2] CharacterAdded OK")
 		end
 	end
 
@@ -151,14 +135,16 @@ end)]]
 end)
 
 if not ok then
-	warn("[VOID v10.2] ERRO: " .. tostring(err))
-	print("[VOID v10.2] ERRO: " .. tostring(err))
+	warn("[VOID v11] ERRO: " .. tostring(err))
+	print("[VOID v11] ERRO: " .. tostring(err))
 	return
 end
 
-print("[VOID v10.2] base OK")
+print("[VOID v11] base OK")
 
--- ---------- VISUAL + CAIXA DE TEXTO ----------
+-- ============================================================
+-- ADDON v11
+-- ============================================================
 task.spawn(function()
 	local pg = player:WaitForChild("PlayerGui")
 	local gui = pg:WaitForChild("VoidSkyUltra", 25)
@@ -172,118 +158,76 @@ task.spawn(function()
 	end
 	if not content then content = main end
 
-	for _, n in ipairs({"UnflyLabel", "UnflyBox", "UnflyStatus", "UnflyToggle", "V10Glow"}) do
-		local o = content:FindFirstChild(n) or main:FindFirstChild(n)
+	for _, n in ipairs({"UnflyLabel", "UnflyBox", "UnflyStatus", "UnflyToggle", "V11PickList"}) do
+		local o = content:FindFirstChild(n) or main:FindFirstChild(n) or gui:FindFirstChild(n)
 		if o then o:Destroy() end
 	end
 
-	-- estilo main
 	pcall(function()
 		main.BackgroundColor3 = Color3.fromRGB(14, 14, 22)
-		main.Size = UDim2.fromOffset(320, 450)
-		local stroke = main:FindFirstChildOfClass("UIStroke")
-		if not stroke then stroke = Instance.new("UIStroke", main) end
+		main.Size = UDim2.fromOffset(320, 460)
+		local stroke = main:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke", main)
 		stroke.Color = Color3.fromRGB(120, 100, 255)
 		stroke.Thickness = 1.8
-		stroke.Transparency = 0.15
-		-- glow animado no stroke
-		task.spawn(function()
-			while main.Parent do
-				TweenService:Create(stroke, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Transparency = 0.45}):Play()
-				task.wait(1.2)
-				TweenService:Create(stroke, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Transparency = 0.1}):Play()
-				task.wait(1.2)
-			end
-		end)
 	end)
 
-	-- anima entrada
-	pcall(function()
-		local s = main.Size
-		main.Size = UDim2.fromOffset(0, 0)
-		main.BackgroundTransparency = 0.5
-		TweenService:Create(main, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-			Size = UDim2.fromOffset(320, 450),
-			BackgroundTransparency = 0
-		}):Play()
-	end)
+	local GREEN = Color3.fromRGB(40, 180, 95)
+	local RED = Color3.fromRGB(210, 50, 60)
+	local GREEN_H = Color3.fromRGB(60, 210, 120)
+	local RED_H = Color3.fromRGB(240, 80, 90)
 
-	-- polish botoes existentes
-	local function styleBtn(b, hoverColor)
-		if not b:IsA("TextButton") then return end
-		b.AutoButtonColor = false
-		local base = b.BackgroundColor3
-		local corner = b:FindFirstChildOfClass("UICorner")
-		if not corner then
-			corner = Instance.new("UICorner", b)
-			corner.CornerRadius = UDim.new(0, 10)
-		end
-		if not b:FindFirstChildOfClass("UIStroke") then
-			local s = Instance.new("UIStroke", b)
-			s.Color = Color3.fromRGB(255, 255, 255)
-			s.Thickness = 1
-			s.Transparency = 0.85
-		end
-		if b:GetAttribute("StyledV10") then return end
-		b:SetAttribute("StyledV10", true)
-		b.MouseEnter:Connect(function()
-			TweenService:Create(b, TweenInfo.new(0.15), {
-				BackgroundColor3 = hoverColor or base:Lerp(Color3.new(1,1,1), 0.15),
-				Size = b.Size + UDim2.fromOffset(0, 2)
-			}):Play()
-		end)
-		b.MouseLeave:Connect(function()
-			TweenService:Create(b, TweenInfo.new(0.15), {
-				BackgroundColor3 = base,
-				Size = b.Size - UDim2.fromOffset(0, 2)
-			}):Play()
-		end)
-		b.MouseButton1Click:Connect(function()
-			local o = b.Size
-			TweenService:Create(b, TweenInfo.new(0.08), {Size = o - UDim2.fromOffset(4, 4)}):Play()
-			task.wait(0.08)
-			TweenService:Create(b, TweenInfo.new(0.12, Enum.EasingStyle.Back), {Size = o}):Play()
-		end)
-	end
-
-	for _, d in ipairs(gui:GetDescendants()) do
-		if d:IsA("TextButton") then
-			local up = string.upper(d.Text or "")
-			if up:find("INICIAR") or up:find("START") then
-				d.BackgroundColor3 = Color3.fromRGB(45, 190, 110)
-				d.Font = Enum.Font.GothamBold
-				styleBtn(d, Color3.fromRGB(70, 220, 140))
-			elseif up:find("PARAR") or up:find("STOP") then
-				d.BackgroundColor3 = Color3.fromRGB(220, 55, 70)
-				d.Font = Enum.Font.GothamBold
-				styleBtn(d, Color3.fromRGB(255, 90, 100))
-			elseif up:find("ANTI VOID") or up:find("GOD MODE") then
-				d.Font = Enum.Font.GothamBold
-				styleBtn(d)
-			else
-				styleBtn(d)
+	-- ===== cores Anti Void / God Mode =====
+	local function syncToggleColors()
+		for _, b in ipairs(content:GetDescendants()) do
+			if b:IsA("TextButton") then
+				local up = string.upper(b.Text or "")
+				if up:find("ANTI VOID") or up:find("GOD MODE") then
+					if up:find("OFF") or up:find("DESATIV") then
+						b.BackgroundColor3 = RED
+					else
+						b.BackgroundColor3 = GREEN
+					end
+				end
 			end
 		end
 	end
 
-	-- titulo
-	for _, d in ipairs(main:GetDescendants()) do
-		if d:IsA("TextLabel") and d.Text and (d.Text:find("VOID") or d.Text:find("ULTRA")) then
-			d.Text = "VOID ULTRA v10.2"
-			d.TextColor3 = Color3.fromRGB(200, 190, 255)
-			d.Font = Enum.Font.GothamBold
+	-- hook nos toggles pra atualizar cor depois do click
+	for _, b in ipairs(content:GetDescendants()) do
+		if b:IsA("TextButton") then
+			local up = string.upper(b.Text or "")
+			if (up:find("ANTI VOID") or up:find("GOD MODE")) and not b:GetAttribute("V11Color") then
+				b:SetAttribute("V11Color", true)
+				b.MouseButton1Click:Connect(function()
+					task.defer(function()
+						task.wait(0.05)
+						syncToggleColors()
+					end)
+				end)
+				b:GetPropertyChangedSignal("Text"):Connect(syncToggleColors)
+			end
 		end
 	end
+	syncToggleColors()
+	-- re-sync periodico leve
+	task.spawn(function()
+		while gui.Parent do
+			syncToggleColors()
+			task.wait(0.5)
+		end
+	end)
 
-	-- ===== caixa de texto =====
-	local selectedTarget, boxEnabled, lastSent = nil, true, 0
+	-- ===== estado caixa =====
+	local selectedTarget = nil
+	local boxEnabled = false -- COMECA DESLIGADA
+	local lastSent = 0
 
 	local label = Instance.new("TextLabel")
 	label.Name = "UnflyLabel"
 	label.Size = UDim2.new(1, -24, 0, 14)
 	label.Position = UDim2.fromOffset(12, 116)
 	label.BackgroundTransparency = 1
-	label.Text = "Mensagem no chat (alvo digitar fly):"
+	label.Text = "Comando no chat (so quando alvo digitar fly):"
 	label.TextColor3 = Color3.fromRGB(170, 175, 210)
 	label.TextSize = 11
 	label.Font = Enum.Font.GothamMedium
@@ -311,22 +255,15 @@ task.spawn(function()
 	bs.Color = Color3.fromRGB(120, 100, 255)
 	bs.Thickness = 1.3
 	bs.Transparency = 0.3
-	local bp = Instance.new("UIPadding", box)
-	bp.PaddingLeft = UDim.new(0, 12)
-	bp.PaddingRight = UDim.new(0, 12)
-	box.Focused:Connect(function()
-		TweenService:Create(bs, TweenInfo.new(0.2), {Transparency = 0, Color = Color3.fromRGB(160, 140, 255)}):Play()
-	end)
-	box.FocusLost:Connect(function()
-		TweenService:Create(bs, TweenInfo.new(0.2), {Transparency = 0.3, Color = Color3.fromRGB(120, 100, 255)}):Play()
-	end)
+	local bpad = Instance.new("UIPadding", box)
+	bpad.PaddingLeft = UDim.new(0, 12)
 
 	local toggleBtn = Instance.new("TextButton")
 	toggleBtn.Name = "UnflyToggle"
 	toggleBtn.Size = UDim2.new(1, -24, 0, 36)
 	toggleBtn.Position = UDim2.fromOffset(12, 172)
-	toggleBtn.BackgroundColor3 = Color3.fromRGB(210, 50, 60)
-	toggleBtn.Text = "PARAR CAIXA DE TEXTO"
+	toggleBtn.BackgroundColor3 = GREEN -- desligada = verde INICIAR
+	toggleBtn.Text = "INICIAR CAIXA DE TEXTO"
 	toggleBtn.TextColor3 = Color3.new(1, 1, 1)
 	toggleBtn.TextSize = 13
 	toggleBtn.Font = Enum.Font.GothamBold
@@ -335,17 +272,14 @@ task.spawn(function()
 	toggleBtn.ZIndex = 6
 	toggleBtn.Parent = content
 	Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 10)
-	local ts = Instance.new("UIStroke", toggleBtn)
-	ts.Color = Color3.fromRGB(255, 255, 255)
-	ts.Transparency = 0.8
 
 	local statusLbl = Instance.new("TextLabel")
 	statusLbl.Name = "UnflyStatus"
-	statusLbl.Size = UDim2.new(1, -24, 0, 30)
+	statusLbl.Size = UDim2.new(1, -24, 0, 32)
 	statusLbl.Position = UDim2.fromOffset(12, 214)
 	statusLbl.BackgroundTransparency = 1
-	statusLbl.Text = "Caixa: LIGADA | Alvo: ninguem"
-	statusLbl.TextColor3 = Color3.fromRGB(120, 210, 150)
+	statusLbl.Text = "Caixa: DESLIGADA | Alvo: ninguem\nClique INICIAR CAIXA ou INICIAR principal"
+	statusLbl.TextColor3 = Color3.fromRGB(255, 140, 140)
 	statusLbl.TextSize = 11
 	statusLbl.Font = Enum.Font.Gotham
 	statusLbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -356,57 +290,169 @@ task.spawn(function()
 	local function refreshStatus()
 		local alvo = selectedTarget and selectedTarget.Name or "ninguem"
 		if boxEnabled then
-			statusLbl.Text = "Caixa: LIGADA | Alvo: " .. alvo .. "\nAlvo digitar fly -> manda a mensagem"
+			statusLbl.Text = "Caixa: LIGADA | Alvo: " .. alvo .. "\nSo ;fly / ;fly me / ;fly nome"
 			statusLbl.TextColor3 = Color3.fromRGB(120, 210, 150)
 		else
-			statusLbl.Text = "Caixa: DESLIGADA | Alvo: " .. alvo .. "\nNao envia nada"
-			statusLbl.TextColor3 = Color3.fromRGB(255, 120, 120)
+			statusLbl.Text = "Caixa: DESLIGADA | Alvo: " .. alvo .. "\nNao envia nada no chat"
+			statusLbl.TextColor3 = Color3.fromRGB(255, 140, 140)
 		end
 	end
 
-	local function setBoxEnabled(on)
-		boxEnabled = on
-		if on then
-			toggleBtn.Text = "PARAR CAIXA DE TEXTO"
-			TweenService:Create(toggleBtn, TweenInfo.new(0.25), {BackgroundColor3 = Color3.fromRGB(210, 50, 60)}):Play()
-		else
-			toggleBtn.Text = "INICIAR CAIXA DE TEXTO"
-			TweenService:Create(toggleBtn, TweenInfo.new(0.25), {BackgroundColor3 = Color3.fromRGB(40, 175, 95)}):Play()
-		end
-		refreshStatus()
-	end
+	-- ===== lista de players (so pra caixa, sem martelo) =====
+	local pickGui = Instance.new("Frame")
+	pickGui.Name = "V11PickList"
+	pickGui.Size = UDim2.fromOffset(0, 0)
+	pickGui.Position = UDim2.new(0.5, 0, 0.5, 0)
+	pickGui.BackgroundColor3 = Color3.fromRGB(14, 14, 22)
+	pickGui.BorderSizePixel = 0
+	pickGui.Visible = false
+	pickGui.ZIndex = 20
+	pickGui.ClipsDescendants = true
+	pickGui.Parent = gui
+	Instance.new("UICorner", pickGui).CornerRadius = UDim.new(0, 14)
+	local pStroke = Instance.new("UIStroke", pickGui)
+	pStroke.Color = Color3.fromRGB(120, 100, 255)
+	pStroke.Thickness = 1.5
 
-	toggleBtn.MouseButton1Click:Connect(function()
-		local o = toggleBtn.Size
-		TweenService:Create(toggleBtn, TweenInfo.new(0.08), {Size = o - UDim2.fromOffset(4, 4)}):Play()
-		task.wait(0.08)
-		TweenService:Create(toggleBtn, TweenInfo.new(0.15, Enum.EasingStyle.Back), {Size = o}):Play()
-		setBoxEnabled(not boxEnabled)
-	end)
-	toggleBtn.MouseEnter:Connect(function()
-		TweenService:Create(ts, TweenInfo.new(0.15), {Transparency = 0.5}):Play()
-	end)
-	toggleBtn.MouseLeave:Connect(function()
-		TweenService:Create(ts, TweenInfo.new(0.15), {Transparency = 0.8}):Play()
-	end)
+	local pTitle = Instance.new("TextLabel")
+	pTitle.Size = UDim2.new(1, -50, 0, 40)
+	pTitle.Position = UDim2.fromOffset(14, 0)
+	pTitle.BackgroundTransparency = 1
+	pTitle.Text = "Alvo da caixa de texto"
+	pTitle.TextColor3 = Color3.fromRGB(235, 235, 250)
+	pTitle.TextSize = 15
+	pTitle.Font = Enum.Font.GothamBold
+	pTitle.TextXAlignment = Enum.TextXAlignment.Left
+	pTitle.ZIndex = 21
+	pTitle.Parent = pickGui
+
+	local pClose = Instance.new("TextButton")
+	pClose.Size = UDim2.fromOffset(28, 28)
+	pClose.Position = UDim2.new(1, -36, 0, 6)
+	pClose.BackgroundColor3 = RED
+	pClose.Text = "X"
+	pClose.TextColor3 = Color3.new(1,1,1)
+	pClose.TextSize = 14
+	pClose.Font = Enum.Font.GothamBold
+	pClose.BorderSizePixel = 0
+	pClose.ZIndex = 21
+	pClose.Parent = pickGui
+	Instance.new("UICorner", pClose).CornerRadius = UDim.new(0, 7)
+
+	local pScroll = Instance.new("ScrollingFrame")
+	pScroll.Size = UDim2.new(1, -20, 1, -50)
+	pScroll.Position = UDim2.fromOffset(10, 42)
+	pScroll.BackgroundTransparency = 1
+	pScroll.BorderSizePixel = 0
+	pScroll.ScrollBarThickness = 4
+	pScroll.ZIndex = 21
+	pScroll.Parent = pickGui
+	local listLayout = Instance.new("UIListLayout", pScroll)
+	listLayout.Padding = UDim.new(0, 6)
+
+	local function closePick()
+		local t = TweenService:Create(pickGui, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+			Size = UDim2.fromOffset(0, 0), Position = UDim2.new(0.5, 0, 0.5, 0)
+		})
+		t:Play()
+		t.Completed:Wait()
+		pickGui.Visible = false
+	end
 
 	local function setTarget(plr)
 		if not plr or plr == player then return end
 		selectedTarget = plr
 		local t = box.Text or ""
-		if t == "" or t == ";unfly " or t == ";unfly" then box.Text = ";unfly " .. plr.Name end
+		if t == "" or t == ";unfly " or t == ";unfly" then
+			box.Text = ";unfly " .. plr.Name
+		end
+		refreshStatus()
+		print("[VOID v11] Alvo caixa: " .. plr.Name)
+	end
+
+	local function openPick()
+		for _, c in ipairs(pScroll:GetChildren()) do
+			if c:IsA("TextButton") then c:Destroy() end
+		end
+		local y = 0
+		for _, plr in ipairs(Players:GetPlayers()) do
+			if plr ~= player then
+				local btn = Instance.new("TextButton")
+				btn.Size = UDim2.new(1, -4, 0, 36)
+				btn.BackgroundColor3 = Color3.fromRGB(30, 32, 48)
+				btn.Text = plr.Name
+				btn.TextColor3 = Color3.new(1,1,1)
+				btn.TextSize = 14
+				btn.Font = Enum.Font.Gotham
+				btn.BorderSizePixel = 0
+				btn.AutoButtonColor = false
+				btn.ZIndex = 22
+				btn.Parent = pScroll
+				Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+				btn.MouseButton1Click:Connect(function()
+					setTarget(plr)
+					closePick()
+				end)
+				btn.MouseEnter:Connect(function()
+					TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(50, 55, 90)}):Play()
+				end)
+				btn.MouseLeave:Connect(function()
+					TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(30, 32, 48)}):Play()
+				end)
+				y = y + 42
+			end
+		end
+		pScroll.CanvasSize = UDim2.new(0, 0, 0, math.max(y, 40))
+		pickGui.Visible = true
+		pickGui.Size = UDim2.fromOffset(0, 0)
+		pickGui.Position = UDim2.new(0.5, 0, 0.5, 0)
+		TweenService:Create(pickGui, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
+			Size = UDim2.fromOffset(260, 320),
+			Position = UDim2.new(0.5, -130, 0.5, -160)
+		}):Play()
+	end
+
+	pClose.MouseButton1Click:Connect(closePick)
+
+	local function setBoxEnabled(on, openList)
+		boxEnabled = on
+		if on then
+			toggleBtn.Text = "PARAR CAIXA DE TEXTO"
+			TweenService:Create(toggleBtn, TweenInfo.new(0.2), {BackgroundColor3 = RED}):Play()
+			if openList then openPick() end
+		else
+			toggleBtn.Text = "INICIAR CAIXA DE TEXTO"
+			TweenService:Create(toggleBtn, TweenInfo.new(0.2), {BackgroundColor3 = GREEN}):Play()
+		end
 		refreshStatus()
 	end
 
+	-- clique no botao da caixa
+	toggleBtn.MouseButton1Click:Connect(function()
+		if not boxEnabled then
+			-- LIGAR: ativa + abre lista pra escolher alvo (sem martelo)
+			setBoxEnabled(true, true)
+		else
+			-- PARAR
+			setBoxEnabled(false, false)
+		end
+	end)
+
+	-- ===== hooks INICIAR principal / lista martelo =====
 	local function forceAntiVoidOn()
 		pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
 		for _, b in ipairs(content:GetDescendants()) do
 			if b:IsA("TextButton") then
 				local txt = string.upper(b.Text or "")
-				if txt:find("ANTI VOID") and txt:find("OFF") then pcall(function() b.MouseButton1Click:Fire() end) end
-				if txt:find("GOD MODE") and txt:find("OFF") then pcall(function() b.MouseButton1Click:Fire() end) end
+				if txt:find("ANTI VOID") and (txt:find("OFF") or txt:find("DESATIV")) then
+					pcall(function() b.MouseButton1Click:Fire() end)
+				end
+				if txt:find("GOD MODE") and (txt:find("OFF") or txt:find("DESATIV")) then
+					pcall(function() b.MouseButton1Click:Fire() end)
+				end
 			end
 		end
+		task.defer(syncToggleColors)
 	end
 
 	RunService.Heartbeat:Connect(function()
@@ -418,28 +464,35 @@ task.spawn(function()
 			if d:IsA("TextButton") then
 				local txt, up = d.Text or "", string.upper(d.Text or "")
 				local plr = Players:FindFirstChild(txt)
-				if plr and plr ~= player and not d:GetAttribute("V10Hook") then
-					d:SetAttribute("V10Hook", true)
+				if plr and plr ~= player and not d:GetAttribute("V11Hook") then
+					d:SetAttribute("V11Hook", true)
 					d.MouseButton1Click:Connect(function() setTarget(plr) end)
 				end
-				if (up == "CONFIRMAR" or up == "CONFIRM") and not d:GetAttribute("V10Confirm") then
-					d:SetAttribute("V10Confirm", true)
-					d.MouseButton1Click:Connect(function() task.wait(0.05) forceAntiVoidOn() end)
+				if (up == "CONFIRMAR" or up == "CONFIRM") and not d:GetAttribute("V11Confirm") then
+					d:SetAttribute("V11Confirm", true)
+					d.MouseButton1Click:Connect(function()
+						task.wait(0.05)
+						forceAntiVoidOn()
+						-- ao confirmar martelo, liga a caixa sozinha
+						if not boxEnabled then setBoxEnabled(true, false) end
+					end)
 				end
-				if (up == "INICIAR" or up == "START") and not d:GetAttribute("V10Start") then
-					d:SetAttribute("V10Start", true)
+				if (up == "INICIAR" or up == "START") and not d:GetAttribute("V11Start") then
+					d:SetAttribute("V11Start", true)
 					d.MouseButton1Click:Connect(function()
 						forceAntiVoidOn()
 						task.delay(0.3, forceAntiVoidOn)
+						-- INICIAR principal liga a caixa sozinha
+						if not boxEnabled then setBoxEnabled(true, false) end
 					end)
 				end
-				if not d:GetAttribute("StyledV10") then styleBtn(d) end
 			end
 		end
 	end
 	hookButtons()
 	gui.DescendantAdded:Connect(function() task.defer(hookButtons) end)
 
+	-- ===== chat: SO fly =====
 	local function sendChat(msg)
 		if type(msg) ~= "string" then return false end
 		msg = msg:gsub("^%s+", ""):gsub("%s+$", "")
@@ -457,7 +510,10 @@ task.spawn(function()
 		if not sent then
 			pcall(function()
 				local ev = game:GetService("ReplicatedStorage"):FindFirstChild("DefaultChatSystemChatEvents")
-				if ev and ev:FindFirstChild("SayMessageRequest") then ev.SayMessageRequest:FireServer(msg, "All") sent = true end
+				if ev and ev:FindFirstChild("SayMessageRequest") then
+					ev.SayMessageRequest:FireServer(msg, "All")
+					sent = true
+				end
 			end)
 		end
 		return sent
@@ -466,15 +522,28 @@ task.spawn(function()
 	local function isFlyMsg(text)
 		if not text then return false end
 		local t = string.lower(tostring(text)):gsub("<[^>]+>", "")
-		return t:find(";%s*fly") or t:find(":%s*fly") or t:find("/fly") or t:match("^%s*fly%s*$") or t:match("^%s*fly%s+") or t:find("fly%s+me")
+		t = t:gsub("^%s+", ""):gsub("%s+$", "")
+		-- ;fly | ;fly me | ;fly Nome | :fly | /fly | fly | fly me | fly Nome
+		if t:match("^;?%s*fly%s*$") then return true end
+		if t:match("^;?%s*fly%s+") then return true end
+		if t:match("^:?%s*fly") then return true end
+		if t:match("^/%s*fly") then return true end
+		if t:find("fly%s+me") then return true end
+		return false
 	end
 
 	local function onChatted(speaker, message)
-		if not boxEnabled or not selectedTarget or not speaker or speaker == player then return end
+		if not boxEnabled then return end
+		if not selectedTarget then return end
+		if not speaker or speaker == player then return end
 		if speaker.UserId ~= selectedTarget.UserId then return end
-		if not isFlyMsg(message) then return end
+		if not isFlyMsg(message) then return end -- SO FLY, nao qualquer msg
+
 		local cmd = box.Text
-		if not cmd or cmd:gsub("%s", "") == "" or cmd == ";unfly" or cmd == ";unfly " then cmd = ";unfly " .. speaker.Name end
+		if not cmd or cmd:gsub("%s", "") == "" or cmd == ";unfly" or cmd == ";unfly " then
+			cmd = ";unfly " .. speaker.Name
+		end
+
 		statusLbl.Text = selectedTarget.Name .. " digitou fly!\nEnviando: " .. cmd
 		statusLbl.TextColor3 = Color3.fromRGB(255, 200, 80)
 		task.defer(function()
@@ -504,6 +573,8 @@ task.spawn(function()
 		end)
 	end)
 
-	setBoxEnabled(true)
-	print("[VOID v10.2] OK | espadas + GUI polish + caixa")
+	-- comeca DESLIGADA
+	setBoxEnabled(false, false)
+	syncToggleColors()
+	print("[VOID v11 SUPER] OK | caixa OFF | AntiVoid cores | lista ao ligar caixa")
 end)
