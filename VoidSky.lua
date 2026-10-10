@@ -1,8 +1,8 @@
 -- ============================================================
--- VOID ULTRA V16 — SKY ONLY
--- So CEU Y=+1.000.000.000 | X=0 Z=0 | SEM VOID
--- Kill Aura: empurra pra BAIXO (atravessar chao)
--- Anti-morte/anti-torto MAX | made by fickus
+-- VOID ULTRA V17
+-- Void Y=-725.000.000 | Ceu Y=+725.000.000 | X=0 Z=0
+-- Kill Aura | Status GUI | Confirm close | Anti MAX
+-- made by fickus
 -- ============================================================
 
 local RunService = game:GetService("RunService")
@@ -12,49 +12,30 @@ local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
 
 local TOOL_NAME = "SledgeHammer"
-local SKY_Y = 1000000000 -- 1 bilhao
 local POS_BEFORE = nil
 
--- ---------- BASE: so ceu, sem void ----------
 local ok, err = pcall(function()
 	local src = game:HttpGet("https://raw.githubusercontent.com/marcelobatizado-commits/VoidSky/3e8d8b67a814686c69551f2f30d0dc2c722a06b4/VoidSky.lua")
 
-	-- Void e ceu no MESMO ponto (ceu) = nunca desce pro void
-	src = string.gsub(src, "%-1500000", "1000000000")
-	src = string.gsub(src, "16000000", "1000000000")
-	-- trigger alto pra quase nunca "trocar modo" — sempre ceu
-	src = string.gsub(src, "HEIGHT_TRIGGER = 100", "HEIGHT_TRIGGER = -999999999")
-	src = string.gsub(src, "v12 SUPER", "V16 SKY")
-	src = string.gsub(src, "%[VOID v12%]", "[V16 SKY]")
+	-- Void -725M | Ceu +725M | trigger Y>=30
+	src = string.gsub(src, "%-1500000", "-725000000")
+	src = string.gsub(src, "16000000", "725000000")
+	src = string.gsub(src, "HEIGHT_TRIGGER = 100", "HEIGHT_TRIGGER = 30")
+	src = string.gsub(src, "v12 SUPER", "V17")
+	src = string.gsub(src, "%[VOID v12%]", "[VOID V17]")
 
 	local fn, cErr = loadstring(src)
 	if not fn then error("Compile: " .. tostring(cErr)) end
 	fn()
 end)
 if not ok then
-	warn("[V16 SKY] ERRO: " .. tostring(err))
-	print("[V16 SKY] ERRO: " .. tostring(err))
+	warn("[VOID V17] ERRO: " .. tostring(err))
+	print("[VOID V17] ERRO: " .. tostring(err))
 	return
 end
-print("[V16 SKY] base OK | Ceu Y=+1.000.000.000 | SEM VOID")
+print("[VOID V17] base OK | Void -725M | Ceu +725M")
 
--- Forca sempre posicao do ceu (nao deixa ir pro void antigo)
-local function forceSkyHold()
-	local char = player.Character
-	if not char then return end
-	local root = char:FindFirstChild("HumanoidRootPart")
-	if not root then return end
-	-- se estiver em Y extremo negativo por bug, sobe pro ceu
-	if root.Position.Y < -100000 then
-		pcall(function()
-			local cf = CFrame.new(0, SKY_Y, 0)
-			char:PivotTo(cf)
-			root.CFrame = cf
-		end)
-	end
-end
-
--- ---------- KILL AURA — empurrão pra BAIXO ----------
+-- ---------- KILL AURA ----------
 local killTarget, killAuraOn = nil, false
 
 local function getHammer()
@@ -76,17 +57,12 @@ local function attackTarget(target)
 	local tRoot = tChar:FindFirstChild("HumanoidRootPart")
 	local tHum = tChar:FindFirstChildOfClass("Humanoid")
 	if not tRoot or not tHum or tHum.Health <= 0 then return end
-
 	local tool = equipHammer()
 	if not tool then return end
 	local handle = tool:FindFirstChild("Handle")
-
-	-- Activate maximo
-	for _ = 1, 8 do pcall(function() tool:Activate() end) end
-
-	-- firetouchinterest em todas as partes
+	for _ = 1, 6 do pcall(function() tool:Activate() end) end
 	if handle and firetouchinterest then
-		for _, part in ipairs(tChar:GetDescendants()) do
+		for _, part in ipairs(tChar:GetChildren()) do
 			if part:IsA("BasePart") then
 				pcall(function()
 					firetouchinterest(handle, part, 0)
@@ -94,14 +70,11 @@ local function attackTarget(target)
 				end)
 			end
 		end
+		pcall(function()
+			firetouchinterest(handle, tRoot, 0)
+			firetouchinterest(handle, tRoot, 1)
+		end)
 	end
-
-	-- boost pra BAIXO no cliente do alvo (ajuda a “furar” o chao)
-	-- velocity negativa forte no Y
-	pcall(function()
-		-- so afeta se tivermos network (geralmente nao); tenta mesmo assim
-		tRoot.AssemblyLinearVelocity = Vector3.new(0, -1e6, 0)
-	end)
 end
 
 local function killLoop()
@@ -113,7 +86,7 @@ RunService.Heartbeat:Connect(killLoop)
 RunService.Stepped:Connect(killLoop)
 RunService.RenderStepped:Connect(killLoop)
 
--- ---------- ANTI-MORTE / ANTI-TORTO MAX (ceu 1B) ----------
+-- ---------- ANTI VOID/CEU MAX ----------
 local function harden(char)
 	if not char then return end
 	local hum = char:FindFirstChildOfClass("Humanoid")
@@ -127,36 +100,33 @@ local function harden(char)
 			hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
 			hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 			hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, false)
-			hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)
 			hum.BreakJointsOnDeath = false
 		end)
 	end
 	if not root then return end
 	local y = root.Position.Y
-	if y > 100000 or y < -1000 then
+	if y <= 100000 and y >= -1000 then return end
+	pcall(function()
+		local p = root.Position
+		if math.abs(p.Y) > 1000000 then p = Vector3.new(0, p.Y, 0) end
+		local up = CFrame.new(p)
+		char:PivotTo(up)
+		root.CFrame = up
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.AssemblyAngularVelocity = Vector3.zero
+	end)
+	for _, p in ipairs(char:GetDescendants()) do
 		pcall(function()
-			local p = root.Position
-			if math.abs(p.Y) > 1000000 then p = Vector3.new(0, p.Y, 0) end
-			local up = CFrame.new(p)
-			char:PivotTo(up)
-			root.CFrame = up
-			root.AssemblyLinearVelocity = Vector3.zero
-			root.AssemblyAngularVelocity = Vector3.zero
-		end)
-		for _, p in ipairs(char:GetDescendants()) do
-			pcall(function()
-				if p:IsA("BasePart") or p:IsA("MeshPart") then
-					p.LocalTransparencyModifier = 0
-					if p:IsA("BasePart") then p.CanCollide = false end
-				end
-			end)
-		end
-		pcall(function()
-			local cam = workspace.CurrentCamera
-			if cam and hum then cam.CameraSubject = hum end
+			if p:IsA("BasePart") or p:IsA("MeshPart") then
+				p.LocalTransparencyModifier = 0
+				if p:IsA("BasePart") then p.CanCollide = false end
+			end
 		end)
 	end
-	forceSkyHold()
+	pcall(function()
+		local cam = workspace.CurrentCamera
+		if cam and hum then cam.CameraSubject = hum end
+	end)
 end
 
 pcall(function() RunService:UnbindFromRenderStep("VoidSkyAntiUltra") end)
@@ -189,14 +159,14 @@ local function showStatus()
 	frame.Size = UDim2.fromOffset(0, 0)
 	frame.Position = UDim2.new(1, -14, 0, 14)
 	frame.AnchorPoint = Vector2.new(1, 0)
-	frame.BackgroundColor3 = Color3.fromRGB(10, 14, 28)
+	frame.BackgroundColor3 = Color3.fromRGB(12, 12, 22)
 	frame.BackgroundTransparency = 0.05
 	frame.BorderSizePixel = 0
 	frame.ClipsDescendants = true
 	frame.Parent = sg
 	Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 14)
 	local stroke = Instance.new("UIStroke", frame)
-	stroke.Color = Color3.fromRGB(80, 190, 255)
+	stroke.Color = Color3.fromRGB(150, 140, 255)
 	stroke.Thickness = 1.3
 	TweenService:Create(frame, TweenInfo.new(0.3, Enum.EasingStyle.Back), {Size = UDim2.fromOffset(220, 138)}):Play()
 
@@ -204,10 +174,10 @@ local function showStatus()
 	modeLbl.Size = UDim2.new(1, -42, 0, 26)
 	modeLbl.Position = UDim2.fromOffset(10, 6)
 	modeLbl.BackgroundTransparency = 1
-	modeLbl.Text = "⬆  CEU"
+	modeLbl.Text = "MODO: --"
 	modeLbl.Font = Enum.Font.GothamBold
 	modeLbl.TextSize = 15
-	modeLbl.TextColor3 = Color3.fromRGB(80, 210, 255)
+	modeLbl.TextColor3 = Color3.new(1,1,1)
 	modeLbl.TextXAlignment = Enum.TextXAlignment.Left
 	modeLbl.Parent = frame
 
@@ -233,7 +203,7 @@ local function showStatus()
 	infoLbl.BackgroundTransparency = 1
 	infoLbl.Font = Enum.Font.Gotham
 	infoLbl.TextSize = 12
-	infoLbl.TextColor3 = Color3.fromRGB(200, 210, 235)
+	infoLbl.TextColor3 = Color3.fromRGB(200, 205, 230)
 	infoLbl.TextXAlignment = Enum.TextXAlignment.Left
 	infoLbl.TextYAlignment = Enum.TextYAlignment.Top
 	infoLbl.TextWrapped = true
@@ -243,10 +213,10 @@ local function showStatus()
 	credit.Size = UDim2.new(1, -12, 0, 14)
 	credit.Position = UDim2.new(0, 6, 1, -18)
 	credit.BackgroundTransparency = 1
-	credit.Text = "made by fickus · SKY ONLY"
+	credit.Text = "made by fickus"
 	credit.Font = Enum.Font.Gotham
 	credit.TextSize = 10
-	credit.TextColor3 = Color3.fromRGB(100, 130, 170)
+	credit.TextColor3 = Color3.fromRGB(120, 120, 150)
 	credit.TextXAlignment = Enum.TextXAlignment.Right
 	credit.Parent = frame
 
@@ -271,13 +241,11 @@ local function showStatus()
 			local item = Stats.Network.ServerStatsItem["Data Ping"]
 			if item then ping = math.floor(item:GetValue()) end
 		end)
-		if y >= 100000 then
-			modeLbl.Text = "⬆  CEU"
-			modeLbl.TextColor3 = Color3.fromRGB(80, 210, 255)
-		else
-			modeLbl.Text = "MAPA"
-			modeLbl.TextColor3 = Color3.fromRGB(180, 180, 200)
-		end
+		local mode, col = "MAPA", Color3.fromRGB(180,180,200)
+		if y <= -1000000 then mode, col = "⬇  VOID", Color3.fromRGB(160, 110, 255)
+		elseif y >= 1000000 then mode, col = "⬆  CEU", Color3.fromRGB(80, 210, 255) end
+		modeLbl.Text = mode
+		modeLbl.TextColor3 = col
 		local ka = killAuraOn and killTarget and ("ON → " .. killTarget.Name) or "OFF"
 		infoLbl.Text = string.format("Y: %s\nX: %d   Z: %d\nFPS: %d   Ping: %dms\nKill Aura: %s", tostring(math.floor(y)), x, z, fps, ping, ka)
 	end)
@@ -309,12 +277,12 @@ task.spawn(function()
 
 	pcall(function()
 		main.ClipsDescendants = true
-		main.BackgroundColor3 = Color3.fromRGB(10, 14, 28)
+		main.BackgroundColor3 = Color3.fromRGB(12, 12, 22)
 		if main.Size.X.Offset < 300 then main.Size = UDim2.fromOffset(320, math.max(main.Size.Y.Offset, 420)) end
 		local c = main:FindFirstChildOfClass("UICorner") or Instance.new("UICorner", main)
 		c.CornerRadius = UDim.new(0, 16)
 		local s = main:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke", main)
-		s.Color = Color3.fromRGB(80, 190, 255)
+		s.Color = Color3.fromRGB(150, 140, 255)
 		s.Thickness = 1.5
 	end)
 
@@ -324,16 +292,15 @@ task.spawn(function()
 		cr.Size = UDim2.new(1, -16, 0, 16)
 		cr.Position = UDim2.new(0, 8, 1, -20)
 		cr.BackgroundTransparency = 1
-		cr.Text = "made by fickus · SKY ONLY"
+		cr.Text = "made by fickus"
 		cr.Font = Enum.Font.Gotham
 		cr.TextSize = 11
-		cr.TextColor3 = Color3.fromRGB(100, 140, 180)
+		cr.TextColor3 = Color3.fromRGB(130, 130, 160)
 		cr.TextXAlignment = Enum.TextXAlignment.Center
 		cr.ZIndex = 10
 		cr.Parent = main
 	end
 
-	-- confirm close
 	local overlay = Instance.new("Frame")
 	overlay.Name = "CloseConfirm"
 	overlay.Size = UDim2.fromScale(1, 1)
@@ -347,7 +314,7 @@ task.spawn(function()
 	local box = Instance.new("Frame")
 	box.Size = UDim2.fromOffset(260, 130)
 	box.Position = UDim2.new(0.5, -130, 0.5, -65)
-	box.BackgroundColor3 = Color3.fromRGB(14, 18, 32)
+	box.BackgroundColor3 = Color3.fromRGB(18, 18, 30)
 	box.BorderSizePixel = 0
 	box.ZIndex = 51
 	box.Parent = overlay
@@ -360,7 +327,7 @@ task.spawn(function()
 	q.Text = "Você tem certeza que deseja\nfechar esse GUI?"
 	q.Font = Enum.Font.GothamBold
 	q.TextSize = 14
-	q.TextColor3 = Color3.fromRGB(240, 245, 255)
+	q.TextColor3 = Color3.fromRGB(240, 240, 255)
 	q.TextWrapped = true
 	q.ZIndex = 52
 	q.Parent = box
@@ -428,24 +395,24 @@ task.spawn(function()
 			if d:IsA("TextButton") then
 				local txt, up = d.Text or "", string.upper(d.Text or "")
 				local plr = Players:FindFirstChild(txt)
-				if plr and plr ~= player and not d:GetAttribute("V16Kill") then
-					d:SetAttribute("V16Kill", true)
+				if plr and plr ~= player and not d:GetAttribute("V17Kill") then
+					d:SetAttribute("V17Kill", true)
 					d.MouseButton1Click:Connect(function()
 						killTarget = plr
 						killAuraOn = true
-						print("[V16 SKY] Kill Aura DOWN -> " .. plr.Name)
+						print("[V17] Kill Aura -> " .. plr.Name)
 					end)
 				end
-				if (up == "INICIAR" or up == "START") and not up:find("CAIXA") and not d:GetAttribute("V16Start") then
-					d:SetAttribute("V16Start", true)
+				if (up == "INICIAR" or up == "START") and not up:find("CAIXA") and not d:GetAttribute("V17Start") then
+					d:SetAttribute("V17Start", true)
 					d.MouseButton1Click:Connect(function()
 						local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 						if root then POS_BEFORE = root.CFrame end
 						task.defer(showStatus)
 					end)
 				end
-				if (up == "CONFIRMAR" or up == "CONFIRM") and not d:GetAttribute("V16Confirm") then
-					d:SetAttribute("V16Confirm", true)
+				if (up == "CONFIRMAR" or up == "CONFIRM") and not d:GetAttribute("V17Confirm") then
+					d:SetAttribute("V17Confirm", true)
 					d.MouseButton1Click:Connect(function()
 						local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 						if root and not POS_BEFORE then POS_BEFORE = root.CFrame end
@@ -453,8 +420,8 @@ task.spawn(function()
 						if killTarget then killAuraOn = true end
 					end)
 				end
-				if (up == "PARAR" or up == "STOP") and not up:find("CAIXA") and not d:GetAttribute("V16Stop") then
-					d:SetAttribute("V16Stop", true)
+				if (up == "PARAR" or up == "STOP") and not up:find("CAIXA") and not d:GetAttribute("V17Stop") then
+					d:SetAttribute("V17Stop", true)
 					d.MouseButton1Click:Connect(function()
 						destroyStatus()
 						killAuraOn = false
@@ -467,4 +434,4 @@ task.spawn(function()
 	gui.DescendantAdded:Connect(function() task.defer(hookAll) end)
 end)
 
-print("[V16 SKY ONLY] made by fickus | Ceu 1B | Kill DOWN | Anti MAX")
+print("[VOID V17] made by fickus | Void+Ceu | Kill Aura | bugs corrigidos")
