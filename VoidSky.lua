@@ -1,7 +1,6 @@
 -- VOID ULTRA v12.1
--- Void Y=-5000000 | Ceu Y=-50000000 | X=0 Z=0
+-- Void Y=-5000000 | Ceu Y=+50000000 | X=0 Z=0
 -- Anti-torto + anti-void/ceu fortissimo
--- (carrega v12 completa e aplica patches de altura)
 
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
@@ -10,9 +9,9 @@ local player = Players.LocalPlayer
 local ok, err = pcall(function()
 	local src = game:HttpGet("https://raw.githubusercontent.com/marcelobatizado-commits/VoidSky/3e8d8b67a814686c69551f2f30d0dc2c722a06b4/VoidSky.lua")
 
-	-- troca alturas no loader interno (antes de executar)
+	-- Void -5M (baixo) | Ceu +50M (cima)
 	src = string.gsub(src, "%-1500000", "-5000000")
-	src = string.gsub(src, "16000000", "-50000000")
+	src = string.gsub(src, "16000000", "50000000")
 	src = string.gsub(src, "v12 SUPER", "v12.1")
 	src = string.gsub(src, "%[VOID v12%]", "[VOID v12.1]")
 
@@ -27,7 +26,7 @@ if not ok then
 	return
 end
 
-print("[VOID v12.1] OK | Void Y=-5.000.000 | Ceu Y=-50.000.000 | X=0 Z=0")
+print("[VOID v12.1] OK | Void Y=-5.000.000 | Ceu Y=+50.000.000 | X=0 Z=0")
 
 -- Anti-torto + anti-void/ceu extra (sempre reto em extremos)
 RunService.Heartbeat:Connect(function()
@@ -49,7 +48,6 @@ RunService.Heartbeat:Connect(function()
 	if root and (root.Position.Y > 50000 or root.Position.Y < -500) then
 		pcall(function()
 			local p = root.Position
-			-- sempre reto, X/Z mantidos, sem rotacao
 			root.CFrame = CFrame.new(p.X, p.Y, p.Z)
 			root.AssemblyAngularVelocity = Vector3.zero
 		end)
